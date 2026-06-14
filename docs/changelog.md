@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3 — 2026-06-14
+
+Gjort kompletterande migreringskontroll mot kvarvarande gamla dokument i `home-assistant/docs/rain-observatory` och flyttat över unikt innehåll som inte tidigare var fullt representerat.
+
+Tillagt:
+
+```text
+docs/decisions.md
+docs/vision/national-rain-observation-platform.md
+```
+
+Uppdaterat:
+
+```text
+docs/sources.md
+docs/glossary.md
+mkdocs.yml
+```
+
+Huvudbeslut:
+
+- beslutsloggen finns nu i den nya strukturen,
+- visionen om en framtida svensk regnobservationsplattform finns nu i den nya strukturen,
+- källregistret är migrerat i mer komplett form,
+- begreppslistan är migrerad i mer komplett form,
+- `hydromet-docs` är nu mycket nära komplett informationsmässigt jämfört med den gamla regnobservatorie-dokumentationen.
+
 ## 0.2 — 2026-06-14
 
 Migrerat resterande centrala beslut och detaljer från tidigare `home-assistant/docs/rain-observatory` utan att kräva exakt 1:1-struktur.
