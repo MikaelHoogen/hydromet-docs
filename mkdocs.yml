@@ -76,7 +76,10 @@ nav:
       - Regnanalysmoduler, detaljer: modules/rain-analysis-modules.md
       - Klimatprediktorbaserad IDF: modules/climate-predictor-idf.md
       - Koppling till skyfallskartering: modules/skyfall-mapping-context.md
+  - Vision:
+      - Svensk regnobservationsplattform: vision/national-rain-observation-platform.md
   - Projekt:
+      - Beslutslogg: decisions.md
       - Roadmap: roadmap.md
       - Källor: sources.md
       - Begrepp: glossary.md
