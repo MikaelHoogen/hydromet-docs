@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2 — 2026-06-14
+
+Migrerat resterande centrala beslut och detaljer från tidigare `home-assistant/docs/rain-observatory` utan att kräva exakt 1:1-struktur.
+
+Tillagt:
+
+```text
+docs/architecture/rain-architecture-details.md
+docs/architecture/rain-data-model-details.md
+docs/modules/rain-analysis-modules.md
+docs/adr/adr-0002-logger-test-is-permanent.md
+docs/adr/adr-0003-netatmo-cloud-is-interval-series.md
+docs/adr/adr-0004-no-forward-extrapolation.md
+docs/adr/adr-0005-local-idf-long-term-goal.md
+docs/adr/adr-0006-asymmetric-gauge-health-checks.md
+docs/adr/adr-0007-climate-predictor-idf-is-future-method.md
+```
+
+Uppdaterat:
+
+```text
+mkdocs.yml
+```
+
+Huvudbeslut:
+
+- dokumentationen behöver inte vara exakt 1:1 med gamla strukturen,
+- informationen ska däremot inte tappas,
+- detaljer om regnarkitektur, konceptuell datamodell och analysmoduler finns nu i egna detaljdokument,
+- samtliga tidigare ADR-0001 till ADR-0008 finns nu i `hydromet-docs`.
+
 ## 0.1 — 2026-06-14
 
 Initierat `hydromet-docs` som separat dokumentationsrepo.
