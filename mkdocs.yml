@@ -66,11 +66,14 @@ nav:
       - Översikt: architecture/overview.md
       - Hydromet kärnmodell: architecture/hydromet-core-model.md
       - Framtida observationsdomäner: architecture/observation-domains.md
+      - Regnarkitektur, detaljer: architecture/rain-architecture-details.md
+      - Regndatamodell, detaljer: architecture/rain-data-model-details.md
       - SQL-plan: architecture/sql-plan.md
       - MQTT-meddelanden och loggerkontrakt: architecture/mqtt-message-contract.md
       - Systemhälsa och larm: architecture/system-health.md
   - Moduler:
       - Regnobservatorium: modules/rain-observatory.md
+      - Regnanalysmoduler, detaljer: modules/rain-analysis-modules.md
       - Klimatprediktorbaserad IDF: modules/climate-predictor-idf.md
       - Koppling till skyfallskartering: modules/skyfall-mapping-context.md
   - Projekt:
@@ -80,4 +83,10 @@ nav:
       - Changelog: changelog.md
   - ADR:
       - ADR-0001 Rådata skrivs aldrig över: adr/adr-0001-raw-data-is-sacred.md
+      - ADR-0002 logger_test är permanent scenariokälla: adr/adr-0002-logger-test-is-permanent.md
+      - ADR-0003 Netatmo cloud behandlas som intervallserie: adr/adr-0003-netatmo-cloud-is-interval-series.md
+      - ADR-0004 Ingen framåtextrapolerande regnvarning: adr/adr-0004-no-forward-extrapolation.md
+      - ADR-0005 Lokal IDF är ett långsiktigt mål: adr/adr-0005-local-idf-long-term-goal.md
+      - ADR-0006 Asymmetriska hälsokontroller mellan TB4 och Netatmo: adr/adr-0006-asymmetric-gauge-health-checks.md
+      - ADR-0007 Klimatprediktorbaserad IDF är en framtida jämförelsemetod: adr/adr-0007-climate-predictor-idf-is-future-method.md
       - ADR-0008 Hydromet core byggs före regnmodul: adr/adr-0008-hydromet-core-before-rain-module.md
