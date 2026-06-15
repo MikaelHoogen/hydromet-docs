@@ -31,7 +31,61 @@ Ingen avancerad analys ska byggas innan rådata, serieregister och mätkedjans h
 Grunddatabasen ska kunna bära fler sensortyper än regn.
 ```
 
-## 2. MVP 0 — Befintlig prototyp
+## 2. PostgreSQL och TimescaleDB
+
+Databasen ska bygga på PostgreSQL med TimescaleDB för de tabeller som växer som tidsserier.
+
+PostgreSQL används för:
+
+```text
+relationsmodell
+metadata
+constraints
+foreign keys
+jsonb
+vanlig SQL
+vyer
+```
+
+TimescaleDB används för:
+
+```text
+hypertables för tidsbaserade observationstabeller
+effektivare frågor över tid
+framtida time_bucket-beräkningar
+framtida continuous aggregates
+framtida komprimering av äldre tidschunks
+```
+
+Första nyttjandet är medvetet enkelt:
+
+```text
+hydromet.point_observations      → hypertable på time
+hydromet.interval_observations   → hypertable på interval_start
+hydromet.event_observations      → hypertable på time
+hydromet.system_health           → hypertable på time
+```
+
+Det betyder att de stora växande tabellerna är förberedda för många års data från regn, nivå, flöde, mark, vind, vattenkvalitet och systemhälsa.
+
+Det som inte ska byggas direkt, men som arkitekturen ska möjliggöra senare:
+
+```text
+continuous aggregates för minut-, tim- och dygnsserier
+materialiserade regnvaraktigheter
+årsmax per varaktighet
+POT-kandidater
+retention-/komprimeringspolicy för äldre data
+gap-detection över långa tidsperioder
+```
+
+Designregel:
+
+```text
+Använd TimescaleDB enkelt i början: hypertables först, avancerade funktioner först när verkliga frågemönster finns.
+```
+
+## 3. MVP 0 — Befintlig prototyp
 
 Nuläge i Home Assistant-miljön:
 
@@ -50,7 +104,7 @@ hydromet.*             = långsiktig struktur
 
 Migrering ska ske explicit och icke-destruktivt.
 
-## 3. MVP 1 — Hydromet core
+## 4. MVP 1 — Hydromet core
 
 Föreslagen första SQL-fil:
 
@@ -70,7 +124,7 @@ hydromet.system_health
 hydromet.system_alerts
 ```
 
-## 4. MVP 1b — Regnmodul ovanpå core
+## 5. MVP 1b — Regnmodul ovanpå core
 
 Föreslagen andra SQL-fil:
 
@@ -97,7 +151,7 @@ hydromet.rain_return_period_results
 hydromet.rain_events
 ```
 
-## 5. Migration från `public.rain_tip_events`
+## 6. Migration från `public.rain_tip_events`
 
 Fältmappning:
 
@@ -124,7 +178,7 @@ Mappa inte bara på topic.
 Använd sensor_id eftersom flera testserier kan dela topic.
 ```
 
-## 6. Senare steg
+## 7. Senare steg
 
 ```text
 normaliserade regnserier
@@ -137,7 +191,7 @@ Grafana
 lokal IDF på lång sikt
 ```
 
-## 7. Vad som inte ska byggas först
+## 8. Vad som inte ska byggas först
 
 ```text
 full händelselogik
