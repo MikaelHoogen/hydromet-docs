@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4 — 2026-06-24
+
+Dokumenterat beslutet att skilja tekniska loggertest från analys- och beräkningstest.
+
+Tillagt:
+
+```text
+docs/adr/adr-0009-separate-logger-test-from-analysis-test.md
+```
+
+Uppdaterat:
+
+```text
+docs/decisions.md
+mkdocs.yml
+```
+
+Huvudbeslut:
+
+- ESP/logger får bete sig som produktion även under teknisk verifiering,
+- tekniska loggertest får skrivas till separat testtabell,
+- teknisk testtabell ska inte användas för IDF, återkomsttid eller produktionsstatistik,
+- analys- och beräkningstest ska gå genom samma observationsmodell som produktion men märkas som testdata.
+
 ## 0.3 — 2026-06-14
 
 Gjort kompletterande migreringskontroll mot kvarvarande gamla dokument i `home-assistant/docs/rain-observatory` och flyttat över unikt innehåll som inte tidigare var fullt representerat.
