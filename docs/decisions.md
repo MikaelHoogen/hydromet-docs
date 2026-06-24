@@ -14,6 +14,7 @@ Detta dokument sammanfattar viktiga arkitekturbeslut. Detaljerade beslut dokumen
 | ADR-0006 | Asymmetriska hälsokontroller mellan TB4 och Netatmo | Accepted |
 | ADR-0007 | Klimatprediktorbaserad IDF är en framtida jämförelsemetod | Accepted |
 | ADR-0008 | Hydromet core byggs före regnmodul | Accepted |
+| ADR-0009 | Loggertest separeras från analys- och beräkningstest | Accepted |
 
 ## Övriga inriktningsbeslut
 
@@ -97,3 +98,11 @@ Dahlstrom_2018
 scenario/RCP/tidsperiod
 plats-/gridbaserade klimatprediktorer
 ```
+
+### Teknisk loggertest skiljs från analys- och beräkningstest
+
+Teknisk verifiering av loggerkedjan får använda separat testtabell, exempelvis `hydromet.rain_logger_test_events`.
+
+Analys- och beräkningstest ska däremot gå genom samma observationsmodell som produktion, men märkas tydligt med exempelvis `is_test = true` och en testserie.
+
+Syftet är att kunna testa ESP, MQTT, pulsnummer och databasskrivning utan risk för produktionsberäkningar, men samtidigt kunna testa beräkningskedjan realistiskt när den delen ska verifieras.
