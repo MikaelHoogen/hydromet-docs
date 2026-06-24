@@ -12,6 +12,7 @@ Systemet ska byggas nerifrån och upp, men inte som en ren regndatabas.
 hydromet core
 → generella observationsserier och råobservationer
 → systemhälsa
+→ teknisk loggertest
 → regnmodul
 → normaliserade regnserier
 → varaktigheter
@@ -29,6 +30,10 @@ Ingen avancerad analys ska byggas innan rådata, serieregister och mätkedjans h
 
 ```text
 Grunddatabasen ska kunna bära fler sensortyper än regn.
+```
+
+```text
+Tekniska loggertest och analys-/beräkningstest ska hållas isär.
 ```
 
 ## 2. PostgreSQL och TimescaleDB
@@ -60,10 +65,11 @@ framtida komprimering av äldre tidschunks
 Första nyttjandet är medvetet enkelt:
 
 ```text
-hydromet.point_observations      → hypertable på time
-hydromet.interval_observations   → hypertable på interval_start
-hydromet.event_observations      → hypertable på time
-hydromet.system_health           → hypertable på time
+hydromet.point_observations        → hypertable på time
+hydromet.interval_observations     → hypertable på interval_start
+hydromet.event_observations        → hypertable på time
+hydromet.system_health             → hypertable på time
+hydromet.rain_logger_test_events   → hypertable på time
 ```
 
 Det betyder att de stora växande tabellerna är förberedda för många års data från regn, nivå, flöde, mark, vind, vattenkvalitet och systemhälsa.
@@ -124,7 +130,119 @@ hydromet.system_health
 hydromet.system_alerts
 ```
 
-## 5. MVP 1b — Regnmodul ovanpå core
+## 5. MVP 1a — Teknisk loggertest
+
+Föreslagen separat SQL-fil:
+
+```text
+sql/hydromet/003_rain_logger_test_events.sql
+```
+
+Syfte:
+
+```text
+teknisk verifiering av ESP/logger
+MQTT-topic och payload
+pulsräkning och pulse_total
+AppDaemon-ingest
+databasskrivning
+dubblettkontroll och felsökning
+```
+
+Föreslagen tabell:
+
+```text
+hydromet.rain_logger_test_events
+```
+
+Denna tabell är inte en analys- eller produktionsdatatabell. Den är en teknisk testlogg för loggerkedjan.
+
+Föreslagen minsta fältuppsättning:
+
+```text
+time
+received_at
+source
+sensor_id
+logger_id
+topic
+event_type
+value
+unit
+counter
+raw_counter
+ignored_counter
+interval_ms
+time_valid
+raw_payload
+metadata
+inserted_at
+```
+
+Designregler:
+
+```text
+Tekniska loggertest får gå till separat testtabell.
+```
+
+```text
+hydromet.rain_logger_test_events ska inte användas för IDF, återkomsttid, varaktigheter, händelsestatistik eller produktionssummeringar.
+```
+
+```text
+Analys- och beräkningstest ska däremot gå genom ordinarie observationsmodell och märkas med is_test = true.
+```
+
+```text
+Loggern ska inte behöva veta om mottagande AppDaemon-konfiguration skriver till testtabell eller produktion.
+```
+
+Exempel på framtida migrationsinnehåll:
+
+```sql
+CREATE TABLE IF NOT EXISTS hydromet.rain_logger_test_events (
+    time            timestamptz NOT NULL,
+    received_at     timestamptz NOT NULL DEFAULT now(),
+
+    source          text NOT NULL,
+    sensor_id       text NOT NULL,
+    logger_id       text,
+    topic           text NOT NULL,
+
+    event_type      text NOT NULL DEFAULT 'rain_tip',
+    value           double precision NOT NULL,
+    unit            text NOT NULL DEFAULT 'mm',
+
+    counter         bigint,
+    raw_counter     bigint,
+    ignored_counter bigint,
+    interval_ms     bigint,
+    time_valid      boolean,
+
+    raw_payload     jsonb NOT NULL,
+    metadata        jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+    inserted_at     timestamptz NOT NULL DEFAULT now()
+);
+
+SELECT create_hypertable(
+    'hydromet.rain_logger_test_events',
+    'time',
+    if_not_exists => TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_rain_logger_test_events_received_at
+    ON hydromet.rain_logger_test_events (received_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rain_logger_test_events_source_sensor_logger
+    ON hydromet.rain_logger_test_events (source, sensor_id, logger_id, time DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rain_logger_test_events_counter
+    ON hydromet.rain_logger_test_events (source, sensor_id, logger_id, counter)
+    WHERE counter IS NOT NULL;
+```
+
+## 6. MVP 1b — Regnmodul ovanpå core
 
 Föreslagen andra SQL-fil:
 
@@ -151,7 +269,7 @@ hydromet.rain_return_period_results
 hydromet.rain_events
 ```
 
-## 6. Migration från `public.rain_tip_events`
+## 7. Migration från `public.rain_tip_events`
 
 Fältmappning:
 
@@ -178,7 +296,7 @@ Mappa inte bara på topic.
 Använd sensor_id eftersom flera testserier kan dela topic.
 ```
 
-## 7. Senare steg
+## 8. Senare steg
 
 ```text
 normaliserade regnserier
@@ -191,7 +309,7 @@ Grafana
 lokal IDF på lång sikt
 ```
 
-## 8. Vad som inte ska byggas först
+## 9. Vad som inte ska byggas först
 
 ```text
 full händelselogik
