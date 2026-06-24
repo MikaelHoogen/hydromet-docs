@@ -93,3 +93,4 @@ nav:
       - ADR-0006 Asymmetriska hälsokontroller mellan TB4 och Netatmo: adr/adr-0006-asymmetric-gauge-health-checks.md
       - ADR-0007 Klimatprediktorbaserad IDF är en framtida jämförelsemetod: adr/adr-0007-climate-predictor-idf-is-future-method.md
       - ADR-0008 Hydromet core byggs före regnmodul: adr/adr-0008-hydromet-core-before-rain-module.md
+      - ADR-0009 Separera loggertest från analys- och beräkningstest: adr/adr-0009-separate-logger-test-from-analysis-test.md
