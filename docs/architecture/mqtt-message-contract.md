@@ -4,11 +4,54 @@ Status: Målbild / delvis nuläge
 
 ## 1. Syfte
 
-Loggerkontraktet ska göra det tydligt hur mätare, loggrar, MQTT, AppDaemon och databas hänger ihop.
+Loggerkontraktet ska göra det tydligt hur mätare, loggrar, MQTT, ingest-adapter och databas hänger ihop.
 
 Målet är att rådata ska kunna lagras robust, med spårbar källa och tillräcklig diagnostik.
 
-## 2. Identiteter
+## 2. MQTT som stabilt gränssnitt
+
+MQTT-kontraktet är ett stabilt gränssnitt mellan fysisk logger och Hydromet/RainLens.
+
+```text
+Logger
+→ MQTT-kontrakt
+→ valfri ingest-adapter
+→ Hydromet/RainLens datamodell
+```
+
+Designprinciper:
+
+```text
+Loggern behöver inte känna till Home Assistant.
+```
+
+```text
+MQTT-brokern behöver inte känna till databasen.
+```
+
+```text
+Databasen behöver inte känna till AppDaemon.
+```
+
+```text
+Ingest-komponenten är utbytbar.
+```
+
+Nuvarande implementation kan vara:
+
+```text
+MQTT → AppDaemon → TimescaleDB
+```
+
+Framtida implementation kan vara:
+
+```text
+MQTT → RainLens ingest → Hydromet/RainLens datamodell
+```
+
+Så länge loggern publicerar enligt topic- och payload-kontraktet ska mottagaren kunna bytas utan att loggern behöver ändras.
+
+## 3. Identiteter
 
 Loggerkontraktet ska skilja på plats, fysisk logger, kanal och mätare.
 
@@ -27,7 +70,7 @@ Loggern är inte samma sak som mätaren.
 
 En fysisk logger kan senare ha flera kanaler och flera anslutna mätare. Därför ska mätartyp inte bakas in i loggerns identitet.
 
-## 3. Nuvarande logger_ha
+## 4. Nuvarande logger_ha
 
 Befintlig logger publicerar accepterade regnpulser som JSON.
 
@@ -58,7 +101,7 @@ inget periodiskt JSON-heartbeat ännu
 
 Detta är historiskt nuläge och får fortsätta fungera. Ny produktionslogger ska följa den nya logger- och platscentrerade strukturen.
 
-## 4. Ny topic-struktur
+## 5. Ny topic-struktur
 
 Ny målbild för topics:
 
@@ -93,7 +136,7 @@ tip         = message_type
 
 Mätaridentiteten ska ligga i payloaden, inte användas som topic-nivå som styr hela loggern.
 
-## 5. Namngivning i Home Assistant
+## 6. Namngivning i Home Assistant
 
 Kort `logger_id` kan vara poetiskt eller internt, men Home Assistant-namn ska vara självbärande.
 
@@ -115,7 +158,7 @@ sensor.regnlogger_nimbus_rain_1_pulse_total
 binary_sensor.regnlogger_nimbus_online
 ```
 
-## 6. Tip-meddelande
+## 7. Tip-meddelande
 
 Exempel på fält:
 
@@ -162,7 +205,7 @@ Viktig princip:
 pulse_total är monotont räknande accepterade pulser och ska användas för att upptäcka luckor.
 ```
 
-## 7. Meddelandetyper
+## 8. Meddelandetyper
 
 Framtida loggrar bör separera:
 
@@ -184,9 +227,9 @@ Heartbeat:
 periodiskt JSON-meddelande med räknare, firmware, uptime, tidstatus och hälsodata
 ```
 
-## 8. AppDaemon-mappning
+## 9. Ingest-mappning
 
-AppDaemon ska inte bara skriva payload rakt in i regntabell.
+Ingest-adaptern ska inte bara skriva payload rakt in i regntabell.
 
 Den ska på sikt mappa:
 
@@ -197,9 +240,11 @@ MQTT topic + site_id + logger_id + channel_id + sensor_id
 → event_observations / interval_observations / point_observations
 ```
 
+AppDaemon är nuvarande ingest-adapter i Home Assistant-miljön. Det ska vara möjligt att ersätta den med en fristående RainLens ingest utan att ändra loggerkontraktet.
+
 Tekniskt loggertest kan mappas till separat testtabell enligt ADR-0009.
 
-## 9. Databasprincip
+## 10. Databasprincip
 
 Tip-meddelanden från tipping bucket skrivs som händelseobservationer:
 
