@@ -13,12 +13,57 @@ Den ska kunna börja mycket konkret med lokal regnloggning, men växa utan att d
 ```text
 Datakällor
 → MQTT / API / manuella observationer
-→ AppDaemon / ingest
+→ utbytbar ingest-adapter
 → TimescaleDB / PostgreSQL
 → hydromet core
 → domänmoduler
 → Home Assistant / Grafana / rapporter
 ```
+
+Nuvarande första implementation använder AppDaemon som ingest-adapter mellan MQTT och databasen. Det är ett implementationsval, inte ett kärnberoende.
+
+## Stabilt kontrakt mellan logger och plattform
+
+MQTT-kontraktet är det stabila gränssnittet mellan fysiska loggrar och Hydromet/RainLens.
+
+```text
+Logger
+→ MQTT-kontrakt
+→ valfri ingest-adapter
+→ Hydromet/RainLens datamodell
+```
+
+Designprinciper:
+
+```text
+Loggern behöver inte känna till Home Assistant.
+```
+
+```text
+MQTT-brokern behöver inte känna till databasen.
+```
+
+```text
+Databasen behöver inte känna till AppDaemon.
+```
+
+```text
+Ingest-komponenten är utbytbar.
+```
+
+Idag kan kedjan vara:
+
+```text
+Logger → MQTT → AppDaemon → TimescaleDB
+```
+
+Senare kan samma kontrakt användas med annan ingest:
+
+```text
+Logger → MQTT → RainLens ingest → RainLens/Hydromet datamodell
+```
+
+Det innebär att Home Assistant och AppDaemon kan vara första driftmiljö och adapter, men inte ska definiera kärnarkitekturen.
 
 ## Huvudprincip
 
