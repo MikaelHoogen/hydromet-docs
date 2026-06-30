@@ -70,6 +70,7 @@ nav:
       - Regndatamodell, detaljer: architecture/rain-data-model-details.md
       - SQL-plan: architecture/sql-plan.md
       - MQTT-meddelanden och loggerkontrakt: architecture/mqtt-message-contract.md
+      - Loggernivåer och mätintegritet: architecture/logger-reliability-levels.md
       - Systemhälsa och larm: architecture/system-health.md
   - Moduler:
       - Regnobservatorium: modules/rain-observatory.md
@@ -94,3 +95,4 @@ nav:
       - ADR-0007 Klimatprediktorbaserad IDF är en framtida jämförelsemetod: adr/adr-0007-climate-predictor-idf-is-future-method.md
       - ADR-0008 Hydromet core byggs före regnmodul: adr/adr-0008-hydromet-core-before-rain-module.md
       - ADR-0009 Separera loggertest från analys- och beräkningstest: adr/adr-0009-separate-logger-test-from-analysis-test.md
+      - ADR-0010 Regnloggernivåer och mätintegritet: adr/adr-0010-rain-logger-reliability-levels.md
