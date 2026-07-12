@@ -1,25 +1,42 @@
 # Waveshare ESP32-S3 ETH 8DI 8RO
 
-Status: Första hårdvarumodell för Nimbus
+Status: Registrerad hårdvarumodell för Nimbus
 
-## Syfte
+## Syfte och dokumentgräns
 
-Denna sida beskriver den fysiska och interna ingångsmappningen för Waveshare ESP32-S3 ETH/PoE med 8 digitala ingångar och 8 utgångar.
+Denna sida beskriver den fysiska och interna ingångsmappningen för Waveshare ESP32-S3 ETH/PoE med åtta digitala ingångar.
 
-Syftet är att hålla hårdvarans interna kopplingar separerade från RainLens/Hydromet-kontraktet.
+Sidan är styrande för:
+
+```text
+namn på fysiska ingångar
+plintmärkning
+intern mappning till ESP32-S3 GPIO
+```
+
+Den är inte styrande för vilken ingång en viss installation använder eller hur MQTT-meddelanden publiceras.
+
+Relaterade dokument:
+
+- [Hårdvaruförteckning](index.md)
+- [Nimbus-installationen i regnobservatoriet](../modules/rain-observatory.md)
+- [Nivå 1-design för regnlogger](../architecture/level-1-logger-design.md)
 
 ## Hårdvarumodell
 
 ```yaml
 hardware_model: waveshare_esp32_s3_eth_8di_8ro
 hardware_family: esp32_s3
-input_type: opto_isolated_digital_input
+network_capability:
+  - ethernet
+  - poe
+input_type: isolated_digital_input
 input_count: 8
 ```
 
 ## Digitala ingångar
 
-Enhetens digitala ingångar används som `physical_input` i installationsmappningen.
+Enhetens ingångsidentiteter används som `physical_input` i en konkret installation.
 
 ```yaml
 physical_inputs:
@@ -65,24 +82,42 @@ physical_inputs:
       value: GPIO11
 ```
 
-## Rekommenderad första regnkanal
+## Uppslag från installation till firmware
 
-För Nimbus används första digitala ingången:
+En installation anger `hardware_model` och `physical_input`:
+
+```yaml
+hardware_model: waveshare_esp32_s3_eth_8di_8ro
+physical_input: DI1
+```
+
+Hårdvaruförteckningen löser då:
+
+```text
+DI1 / IN1
+→ GPIO4
+```
+
+Firmware kan därefter konfigurera den upplösta GPIO-bindningen som ingång.
+
+## Nimbus-beslutet
+
+Nimbus använder:
 
 ```yaml
 channel_id: rain_1
 physical_input: DI1
-resolved_hardware_binding:
-  type: gpio
-  value: GPIO4
 ```
 
-Detta betyder:
+Detta är ett installationsbeslut för Nimbus, inte ett påstående om att `DI1` generellt är elektriskt bättre än övriga digitala ingångar på modellen.
+
+Den kompletta kedjan blir:
 
 ```text
 RainLens-kanal rain_1
-→ fysisk ingång DI1 / IN1 på Waveshare-enheten
-→ intern ESP32-S3-bindning GPIO4
+→ fysisk ingång DI1 / IN1
+→ intern bindning GPIO4
+→ lokal pulsläsning enligt Nivå 1-designen
 ```
 
 ## Designregel
@@ -94,10 +129,4 @@ GPIO4 är hårdvarumodellens interna bindning för DI1.
 
 Installationen ska därför normalt peka på `physical_input: DI1`, inte hårdkoda `GPIO4` som primär kanalidentitet.
 
-## Kommentarer
-
-DI1–DI4 använder GPIO4–GPIO7 och är lämpliga första val för enkla pulsingångar.
-
-DI5–DI8 använder GPIO8–GPIO11. De kan vara användbara, men bör väljas med medvetenhet om alternativa funktioner på ESP32-S3.
-
-Strapping-, USB- och JTAG-relaterade pinnar ska undvikas för regnpulser där det finns renare ingångar.
+GPIO-numret får användas i den genererade eller enhetsspecifika firmwarekonfigurationen efter att hårdvaruuppslaget har gjorts.
