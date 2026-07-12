@@ -1,12 +1,23 @@
 # MQTT-meddelanden och loggerkontrakt
 
-Status: Målbild / delvis nuläge
+Status: Kanoniskt kontrakt för Nivå 1 / delvis implementerat
 
-## 1. Syfte
+## 1. Syfte och dokumentgräns
 
-Loggerkontraktet ska göra det tydligt hur mätare, loggrar, MQTT, ingest-adapter och databas hänger ihop.
+Detta dokument är styrande för MQTT-topics, meddelandetyper, retained-regler och payloadfält mellan en logger och en ingest-adapter.
 
-Målet är att rådata ska kunna lagras robust, med spårbar källa och tillräcklig diagnostik.
+Det beskriver inte:
+
+- hur en viss fysisk ingång är kopplad internt i en hårdvarumodell
+- hur en konkret loggerinstallation är kabelansluten
+- den fullständiga ESPHome-implementationen
+- analys- eller databaslogik utöver kontraktets gräns
+
+Relaterade styrande dokument:
+
+- [Nivå 1-design för regnlogger](level-1-logger-design.md) beskriver loggerbeteende, återhämtning och test.
+- [Hårdvaruförteckningen](../hardware/index.md) beskriver `physical_input` och `hardware_binding`.
+- [Regnobservatoriet](../modules/rain-observatory.md) beskriver Nimbus-installationen.
 
 ## 2. MQTT som stabilt gränssnitt
 
@@ -23,37 +34,28 @@ Designprinciper:
 
 ```text
 Loggern behöver inte känna till Home Assistant.
-```
-
-```text
 MQTT-brokern behöver inte känna till databasen.
-```
-
-```text
 Databasen behöver inte känna till AppDaemon.
-```
-
-```text
 Ingest-komponenten är utbytbar.
 ```
 
-Nuvarande implementation kan vara:
+Nuvarande kedja kan vara:
 
 ```text
 MQTT → AppDaemon → TimescaleDB
 ```
 
-Framtida implementation kan vara:
+Framtida kedja kan vara:
 
 ```text
 MQTT → RainLens ingest → Hydromet/RainLens datamodell
 ```
 
-Så länge loggern publicerar enligt topic- och payload-kontraktet ska mottagaren kunna bytas utan att loggern behöver ändras.
+Så länge loggern publicerar enligt topic- och payloadkontraktet ska mottagaren kunna bytas utan att loggern behöver ändras.
 
 ## 3. Identiteter
 
-Loggerkontraktet ska skilja på plats, fysisk logger, kanal och mätare.
+Kontraktet skiljer på plats, fysisk logger, logisk kanal och mätare.
 
 ```text
 site_id     = plats eller anläggning, t.ex. sannesholma
@@ -66,36 +68,14 @@ Designregler:
 
 ```text
 Loggern är inte samma sak som mätaren.
-```
-
-```text
 Kanalidentiteten är inte samma sak som fysisk plint eller intern GPIO.
 ```
 
-En fysisk logger kan senare ha flera kanaler och flera anslutna mätare. Därför ska mätartyp inte bakas in i loggerns identitet.
+En logger kan ha flera kanaler och flera anslutna mätare. Mätartyp ska därför inte bakas in i loggerns identitet.
 
-## 4. Kanal, fysisk ingång och hårdvarubindning
+## 4. Kanal och hårdvaruabstraktion
 
 `channel_id` är den stabila identiteten i RainLens/Hydromet-kontraktet.
-
-Exempel:
-
-```text
-rain_1 = första regnkanalen på loggern
-```
-
-En konkret hårdvara kan ha fysiska ingångar som `DI1`, `IN1`, `input_0` eller något helt annat.
-
-En konkret hårdvara kan också läsa ingången via olika interna tekniker:
-
-```text
-GPIO
-Modbus discrete input
-I2C-expander
-annan intern I/O-modell
-```
-
-Därför ska följande hållas isär:
 
 ```text
 channel_id       = stabil kanalidentitet i kontraktet
@@ -103,133 +83,173 @@ physical_input   = fysisk ingång på vald hårdvarumodell
 hardware_binding = hårdvarumodellens interna tekniska koppling
 ```
 
-Exempel för Nimbus med Waveshare 8DI:
+För Nimbus:
 
 ```text
 rain_1
 → DI1 / IN1
-→ GPIO4
+→ GPIO4 på Waveshare-modellen
 ```
 
-I detta exempel är `rain_1` kontraktet, `DI1` den fysiska ingången på hårdvaran och `GPIO4` Waveshare-enhetens interna bindning för just den ingången.
+I detta exempel är `rain_1` kontraktet, `DI1` installationens fysiska ingång och `GPIO4` hårdvarumodellens interna bindning.
 
-`GPIO4` ska inte betraktas som en generell del av MQTT-kontraktet.
+`physical_input`, GPIO-nummer, Modbus-adress eller andra interna bindningar ska normalt inte skickas i varje observation. De hör hemma i installationens metadata och hårdvaruförteckningen.
 
-Hårdvarumappningen dokumenteras i hårdvaruförteckningen, inte i varje observation.
+## 5. Kanonisk topic-struktur
 
-## 5. Nuvarande logger_ha
-
-Befintlig logger publicerar accepterade regnpulser som JSON.
+Loggerövergripande topics:
 
 ```text
-regnlogger/tb4/logger_ha/tip
+regnlogger/<site_id>/<logger_id>/status
+regnlogger/<site_id>/<logger_id>/heartbeat
 ```
 
-Befintlig logger har också MQTT birth/will-status:
+Kanalövergripande topics:
 
 ```text
-regnlogger/tb4/logger_ha/status
+regnlogger/<site_id>/<logger_id>/<channel_id>/state
+regnlogger/<site_id>/<logger_id>/<channel_id>/tip
 ```
 
-Statusvärden:
-
-```text
-online
-offline
-```
-
-Nuläge:
-
-```text
-tip-topic med JSON vid accepterad puls
-status-topic med retained online/offline
-inget periodiskt JSON-heartbeat ännu
-```
-
-Detta är historiskt nuläge och får fortsätta fungera. Ny produktionslogger ska följa den nya logger- och platscentrerade strukturen.
-
-## 6. Ny topic-struktur
-
-Ny målbild för topics:
-
-```text
-regnlogger/<site_id>/<logger_id>/<channel_id>/<message_type>
-```
-
-Exempel:
-
-```text
-regnlogger/sannesholma/nimbus/rain_1/tip
-regnlogger/sannesholma/nimbus/rain_1/status
-regnlogger/sannesholma/nimbus/rain_1/heartbeat
-```
-
-För loggerövergripande status kan även denna nivå användas:
+Exempel för Nimbus:
 
 ```text
 regnlogger/sannesholma/nimbus/status
 regnlogger/sannesholma/nimbus/heartbeat
+regnlogger/sannesholma/nimbus/rain_1/state
+regnlogger/sannesholma/nimbus/rain_1/tip
 ```
 
-Rekommenderad tolkning:
+Tolkning:
 
 ```text
 regnlogger  = system/familj
 sannesholma = site_id
 nimbus      = logger_id
 rain_1      = channel_id
-tip         = message_type
+state/tip   = message_type
 ```
 
-Mätaridentiteten ska ligga i payloaden, inte användas som topic-nivå som styr hela loggern.
+Mätaridentiteten ligger i payloaden och är inte en topic-nivå som definierar hela loggern.
 
-## 7. Namngivning i Home Assistant
+## 6. Meddelandetyper och retained-regler
 
-Kort `logger_id` kan vara poetiskt eller internt, men Home Assistant-namn ska vara självbärande.
+| Meddelande | Nivå | Retained | Publicering | Funktion |
+|---|---|---:|---|---|
+| `status` | logger | Ja | birth/will och anslutningsförändring | Snabb online/offline-status |
+| `heartbeat` | logger | Normalt nej | Periodiskt | Hälsa, tid, uptime, firmware och kanalöversikt |
+| `state` | kanal | Ja | Vid accepterad puls samt periodiskt | Senaste ackumulerade kanalläge och återhämtningspunkt |
+| `tip` | kanal | Nej | Vid varje accepterad puls | Live-event med bästa tillgängliga tid |
+
+Grundregel:
+
+```text
+state och tip kompletterar varandra.
+```
+
+`tip` ger tidsupplöst information. `state` gör att ackumulerad mängd kan jämföras och delvis återhämtas om live-events saknas.
+
+## 7. Status
+
+`status` är loggerövergripande och ska vara retained.
+
+Topic:
+
+```text
+regnlogger/<site_id>/<logger_id>/status
+```
+
+Payload:
+
+```text
+online
+offline
+```
+
+Rekommenderad användning:
+
+- MQTT birth publicerar `online` retained.
+- MQTT last will publicerar `offline` retained.
+- Kontrollerad nedstängning får publicera `offline` retained.
+
+Status ersätter inte heartbeat. Den visar anslutningsläge, inte full systemhälsa.
+
+## 8. Channel state
+
+`state` är kanalens senaste kända ackumulerade läge och ska vara retained.
+
+Schema:
+
+```text
+rainlens.logger.channel_state.v1
+```
 
 Exempel:
 
-```text
-logger_id: nimbus
-ha_prefix: regnlogger_nimbus
-display_name: Regnlogger Nimbus
+```json
+{
+  "schema": "rainlens.logger.channel_state.v1",
+  "site_id": "sannesholma",
+  "logger_id": "nimbus",
+  "channel_id": "rain_1",
+  "sensor_id": "tb4_0p2",
+  "sensor_type": "tipping_bucket",
+  "mm_per_tip": 0.2,
+  "pulse_total": 12345,
+  "raw_pulse_total": 12350,
+  "ignored_pulse_total": 5,
+  "rain_total_mm": 2469.0,
+  "last_tip_epoch_s": 1782840000,
+  "last_tip_uptime_ms": 12345678,
+  "time_valid": true,
+  "uptime_ms": 12350000,
+  "boot_count": 7,
+  "firmware": "rainlens-field-prototype-v1",
+  "faults": []
+}
 ```
 
-Exempel på HA-entiteter:
+Minimikrav:
+
+- `schema`
+- `site_id`
+- `logger_id`
+- `channel_id`
+- `sensor_id`
+- `mm_per_tip`
+- `pulse_total`
+- `rain_total_mm`
+- `time_valid`
+- `uptime_ms`
+
+Rekommenderade fält:
+
+- `sensor_type`
+- `raw_pulse_total`
+- `ignored_pulse_total`
+- `last_tip_epoch_s`
+- `last_tip_uptime_ms`
+- `boot_count`
+- `firmware`
+- `faults`
+
+`state` ska publiceras vid varje accepterad puls och dessutom periodiskt. Periodisk publicering gör att mottagaren får en ny kontrollpunkt även när ett tidigare state-meddelande har missats eller brokern har startats om utan bevarad retained-databas.
+
+## 9. Tip-event
+
+`tip` representerar en enskild accepterad vippning och ska inte vara retained.
+
+Schema:
 
 ```text
-sensor.regnlogger_nimbus_status
-sensor.regnlogger_nimbus_uptime
-sensor.regnlogger_nimbus_wifi_signal
-sensor.regnlogger_nimbus_rain_1_pulse_total
-binary_sensor.regnlogger_nimbus_online
+rainlens.logger.tip_event.v1
 ```
 
-## 8. Tip-meddelande
-
-Exempel på fält:
-
-```text
-site_id
-logger_id
-channel_id
-sensor_id
-sensor_type
-event
-mm
-pulse_total
-raw_pulse_total
-ignored_pulse_total
-uptime_ms
-interval_ms
-time_valid
-epoch_s
-```
-
-Exempelpayload:
+Exempel:
 
 ```json
 {
+  "schema": "rainlens.logger.tip_event.v1",
   "site_id": "sannesholma",
   "logger_id": "nimbus",
   "channel_id": "rain_1",
@@ -237,62 +257,154 @@ Exempelpayload:
   "sensor_type": "tipping_bucket",
   "event": "rain_tip",
   "mm": 0.2,
-  "pulse_total": 123,
-  "raw_pulse_total": 123,
-  "ignored_pulse_total": 0,
-  "time_valid": true,
-  "epoch_s": 1782840000
+  "pulse_total": 12345,
+  "raw_pulse_total": 12350,
+  "ignored_pulse_total": 5,
+  "interval_ms": 35892,
+  "epoch_s": 1782840000,
+  "uptime_ms": 12345678,
+  "time_valid": true
 }
 ```
 
-Viktig princip:
+Minimikrav:
+
+- `schema`
+- `site_id`
+- `logger_id`
+- `channel_id`
+- `sensor_id`
+- `event`
+- `mm`
+- `pulse_total`
+- `uptime_ms`
+- `time_valid`
+
+Rekommenderade fält:
+
+- `sensor_type`
+- `raw_pulse_total`
+- `ignored_pulse_total`
+- `interval_ms`
+- `epoch_s` när tiden är giltig
+
+## 10. Heartbeat
+
+Heartbeat är loggerövergripande och bör publiceras periodiskt, exempelvis var 30:e eller 60:e sekund.
+
+Schema:
 
 ```text
-pulse_total är monotont räknande accepterade pulser och ska användas för att upptäcka luckor.
+rainlens.logger.heartbeat.v1
 ```
 
-Hårdvaruinterna fält som `gpio` ska normalt inte skickas i varje tip-meddelande. Sådan information hör hemma i hårdvarumetadata eller heartbeat/status om den behövs för diagnostik.
+Exempel:
 
-## 9. Meddelandetyper
+```json
+{
+  "schema": "rainlens.logger.heartbeat.v1",
+  "site_id": "sannesholma",
+  "logger_id": "nimbus",
+  "status": "online",
+  "uptime_ms": 12350000,
+  "boot_count": 7,
+  "time_valid": true,
+  "network": "ethernet",
+  "hardware_model": "waveshare_esp32_s3_eth_8di_8ro",
+  "channels": {
+    "rain_1": {
+      "sensor_id": "tb4_0p2",
+      "pulse_total": 12345,
+      "raw_pulse_total": 12350,
+      "ignored_pulse_total": 5,
+      "last_tip_epoch_s": 1782840000,
+      "last_tip_uptime_ms": 12345678
+    }
+  },
+  "firmware": "rainlens-field-prototype-v1",
+  "faults": []
+}
+```
 
-Framtida loggrar bör separera:
+Heartbeat ska kunna användas för att upptäcka:
+
+- utebliven kontakt trots att retained status fortfarande visar `online`
+- reboot genom ändrad `boot_count` eller lägre `uptime_ms`
+- ogiltig tid
+- räknaravvikelse
+- logger- eller kanalrelaterade fel
+
+## 11. Räknarsemantik
 
 ```text
-tip
-status
-heartbeat
+raw_pulse_total      = alla detekterade pulser
+pulse_total          = accepterade pulser efter filter
+ignored_pulse_total  = bortfiltrerade pulser
 ```
 
-Status:
+`pulse_total` är loggerns lokala, logiskt monotona räknare för accepterade pulser och den bästa tillgängliga sanningen för ackumulerad Nivå 1-data.
+
+Den används för att:
+
+- upptäcka saknade live-events
+- identifiera dubbletter
+- beräkna saknad ackumulerad mängd
+- upptäcka räknarregression efter reboot eller persistensproblem
+
+Ett räknarhopp får inte omvandlas till påhittade tip-tider. Mängden kan återhämtas, men tidsfördelningen ska markeras som osäker.
+
+## 12. Tidshantering
 
 ```text
-retained online/offline
+uptime_ms skickas alltid.
+time_valid skickas alltid.
+epoch_s skickas bara när tid är giltig.
 ```
 
-Heartbeat:
+Om tiden inte är giltig:
+
+```json
+{
+  "time_valid": false,
+  "epoch_s": null
+}
+```
+
+`epoch_s` får också utelämnas när `time_valid` är `false`.
+
+Viktig regel:
 
 ```text
-periodiskt JSON-meddelande med räknare, firmware, uptime, tidstatus och hälsodata
+Loggern får inte publicera falsk UTC-tid som ser giltig ut.
 ```
 
-## 10. Ingest-mappning
+## 13. Ingest-kontrakt
 
-Ingest-adaptern ska inte bara skriva payload rakt in i regntabell.
-
-Den ska på sikt mappa:
+Ingest-adaptern ska använda kombinationen:
 
 ```text
 MQTT topic + site_id + logger_id + channel_id + sensor_id
-→ observation_series
+```
+
+för att mappa till:
+
+```text
+observation_series
 → aktiv measurement_setup
 → event_observations / interval_observations / point_observations
 ```
 
-AppDaemon är nuvarande ingest-adapter i Home Assistant-miljön. Det ska vara möjligt att ersätta den med en fristående RainLens ingest utan att ändra loggerkontraktet.
+För tipping bucket-data ska ingest-adaptern:
 
-Tekniskt loggertest kan mappas till separat testtabell enligt ADR-0009.
+- skriva normala live-tips som händelseobservationer
+- jämföra `tip.pulse_total` och `state.pulse_total` med senast kända räknare
+- undvika dubbelräkning
+- flagga räknarhopp och räknarregression
+- kunna återvinna saknad ackumulerad mängd utan att konstruera exakta tip-tider
 
-## 11. Databasprincip
+Fullständig återhämtningslogik beskrivs i [Nivå 1-designen](level-1-logger-design.md).
+
+## 14. Databasprincip
 
 Tip-meddelanden från tipping bucket skrivs som händelseobservationer:
 
@@ -300,7 +412,7 @@ Tip-meddelanden från tipping bucket skrivs som händelseobservationer:
 hydromet.event_observations
 ```
 
-Tekniska loggertest kan skrivas till:
+Tekniska loggertest kan enligt ADR-0009 skrivas till:
 
 ```text
 hydromet.rain_logger_test_events
@@ -312,9 +424,27 @@ Moln-/API-regn per tidsintervall skrivs som intervallobservationer:
 hydromet.interval_observations
 ```
 
-Status och heartbeat skrivs till systemhälsa:
+Status, heartbeat och kanalhälsa hör till:
 
 ```text
 hydromet.system_health
 hydromet.system_alerts
 ```
+
+Återhämtad mängd från ett räknarhopp ska lagras med kvalitetsinformation som visar att den exakta tidsfördelningen är okänd.
+
+## 15. Historiskt kontrakt: logger_ha
+
+Befintlig logger publicerar accepterade regnpulser som JSON på:
+
+```text
+regnlogger/tb4/logger_ha/tip
+```
+
+och birth/will-status på:
+
+```text
+regnlogger/tb4/logger_ha/status
+```
+
+Detta är ett historiskt kompatibilitetsspår. Det får fortsätta fungera under övergången, men nya Nivå 1-loggrar ska använda det kanoniska kontraktet med loggerövergripande `status` och `heartbeat` samt kanalövergripande `state` och `tip`.
