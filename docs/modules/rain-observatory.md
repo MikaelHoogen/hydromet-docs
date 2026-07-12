@@ -49,7 +49,39 @@ eller
 hydromet.point_observations
 ```
 
-## 4. Varaktigheter
+## 4. Nimbus-installation
+
+Första produktionsnära regnloggern kallas Nimbus.
+
+```yaml
+site_id: sannesholma
+logger_id: nimbus
+ha_prefix: regnlogger_nimbus
+hardware_model: waveshare_esp32_s3_eth_8di_8ro
+```
+
+Första regnkanal:
+
+```yaml
+channels:
+  rain_1:
+    physical_input: DI1
+    sensor_id: tb4_0p2
+    sensor_type: tipping_bucket
+    mm_per_tip: 0.2
+```
+
+Tolkning:
+
+```text
+rain_1 = RainLens/Hydromets logiska regnkanal
+DI1    = fysisk ingång på Waveshare-enheten
+GPIO4  = intern hårdvarubindning enligt hårdvaruförteckningen
+```
+
+Installationen ska normalt hänvisa till `physical_input: DI1`. Den interna kopplingen `DI1 → GPIO4` hör hemma i hårdvaruförteckningen för Waveshare-modellen.
+
+## 5. Varaktigheter
 
 Primära varaktigheter:
 
@@ -59,7 +91,7 @@ Primära varaktigheter:
 
 5 minuter kan finnas som diagnostik/nice-to-have.
 
-## 5. IDF och återkomstklassning
+## 6. IDF och återkomstklassning
 
 Första metodfamiljer:
 
@@ -77,7 +109,7 @@ klimatprediktorbaserad IDF
 lokal IDF
 ```
 
-## 6. Designprincip
+## 7. Designprincip
 
 ```text
 Regnanalys byggs ovanpå hydromet core.
