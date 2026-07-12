@@ -2,19 +2,37 @@
 
 Status: Levande förteckning
 
-## Syfte
+## Syfte och dokumentgräns
 
 Hårdvaruförteckningen beskriver fysiska logger- och I/O-enheter som kan användas i Hydromet/RainLens.
 
-Den ska hålla isär:
+Den är styrande för:
+
+```text
+hårdvarumodeller
+fysiska plintar och ingångar
+interna hårdvarubindningar
+elektriska och tekniska egenskaper
+```
+
+Den beskriver inte MQTT-payloads, retained-regler, räknarlogik eller den fullständiga installationen.
+
+Relaterade dokument:
+
+- [MQTT-meddelanden och loggerkontrakt](../architecture/mqtt-message-contract.md) beskriver transportkontraktet.
+- [Nivå 1-design för regnlogger](../architecture/level-1-logger-design.md) beskriver loggerns beteende.
+- [Regnobservatoriet](../modules/rain-observatory.md) beskriver den konkreta Nimbus-installationen.
+
+## Princip
+
+Dokumentationen ska hålla isär:
 
 ```text
 RainLens-kontrakt
-→ hårdvarumodell
 → konkret installation
+→ hårdvarumodell
+→ intern teknisk bindning
 ```
-
-## Princip
 
 RainLens/Hydromet ska inte göra GPIO, Modbus-register, I2C-portar eller andra interna kopplingar till en del av det generella observationskontraktet.
 
@@ -27,11 +45,9 @@ channel_id
 sensor_id
 ```
 
-Hårdvaruförteckningen beskriver hur en viss hårdvarumodells fysiska ingångar är uppbyggda.
+En konkret installation beskriver vilken fysisk ingång som används för en viss logisk kanal. Hårdvaruförteckningen beskriver sedan hur just den ingången är uppbyggd internt på den valda modellen.
 
-En konkret installation beskriver sedan vilken fysisk ingång som används för en viss logisk kanal.
-
-## Tre lager
+## Tre informationsnivåer
 
 ### 1. Kontrakt
 
@@ -42,19 +58,9 @@ channel_id: rain_1
 sensor_id: tb4_0p2
 ```
 
-### 2. Hårdvarumodell
+Kontraktet använder den logiska kanalidentiteten `rain_1` och behöver inte känna till plint eller GPIO.
 
-```yaml
-hardware_model: waveshare_esp32_s3_eth_8di_8ro
-physical_inputs:
-  DI1:
-    label: IN1
-    hardware_binding:
-      type: gpio
-      value: GPIO4
-```
-
-### 3. Installation
+### 2. Installation
 
 ```yaml
 logger_id: nimbus
@@ -67,25 +73,39 @@ channels:
     mm_per_tip: 0.2
 ```
 
+Installationen säger att `rain_1` använder `DI1` på den valda hårdvarumodellen.
+
+### 3. Hårdvarumodell
+
+```yaml
+hardware_model: waveshare_esp32_s3_eth_8di_8ro
+physical_inputs:
+  DI1:
+    label: IN1
+    hardware_binding:
+      type: gpio
+      value: GPIO4
+```
+
+Hårdvarumodellen löser `DI1` till den interna bindningen `GPIO4`.
+
 ## Begrepp
 
-```text
-channel_id
-```
+### `channel_id`
 
 Abstrakt och stabil kanalidentitet i Hydromet/RainLens, till exempel `rain_1`.
 
-```text
-physical_input
-```
+### `physical_input`
 
 Fysisk ingång på den hårdvarumodell som loggern använder, till exempel `DI1`, `IN1`, `input_0` eller `A0`.
 
-```text
-hardware_binding
-```
+Värdet tolkas alltid tillsammans med `hardware_model`.
+
+### `hardware_binding`
 
 Intern teknisk koppling i hårdvarumodellen, till exempel `GPIO4`, Modbus discrete input address 0 eller IO-expander port A0.
+
+Bindningen används av firmware eller drivrutin, men är inte kanalens identitet i RainLens-kontraktet.
 
 ## Designregel
 
@@ -95,4 +115,4 @@ physical_input är installationsmappning mot vald hårdvarumodell.
 hardware_binding är hårdvarumodellens interna teknik.
 ```
 
-Det gör att samma RainLens-kanal kan flyttas mellan olika hårdvaror utan att observationskontrakt, MQTT-topic eller databasmodell behöver göras om.
+Det gör att samma RainLens-kanal kan flyttas mellan olika hårdvaror utan att MQTT-topic, observationskontrakt eller databasmodell behöver göras om.
