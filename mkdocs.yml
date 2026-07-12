@@ -69,6 +69,7 @@ nav:
       - Regnarkitektur, detaljer: architecture/rain-architecture-details.md
       - Regndatamodell, detaljer: architecture/rain-data-model-details.md
       - SQL-plan: architecture/sql-plan.md
+      - Nivå 1-design för regnlogger: architecture/level-1-logger-design.md
       - MQTT-meddelanden och loggerkontrakt: architecture/mqtt-message-contract.md
       - Systemhälsa och larm: architecture/system-health.md
   - Hårdvara:
