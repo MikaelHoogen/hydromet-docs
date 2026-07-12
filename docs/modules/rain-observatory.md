@@ -2,7 +2,7 @@
 
 Status: Första modul / aktiv utveckling
 
-## 1. Syfte
+## 1. Syfte och dokumentgräns
 
 Regnobservatoriet är första konkreta modulen ovanpå hydromet core.
 
@@ -18,10 +18,19 @@ IDF-jämförelse
 regnhändelser
 ```
 
+Detta dokument beskriver modulens datakällor, den konkreta Nimbus-installationen och den framtida regnanalysen.
+
+Det är inte styrande för intern hårdvarumappning eller fullständiga MQTT-payloads:
+
+- [Hårdvaruförteckningen](../hardware/index.md) beskriver fysisk ingång och intern bindning.
+- [Nivå 1-designen](../architecture/level-1-logger-design.md) beskriver loggerns beteende och robusthetsnivå.
+- [MQTT-kontraktet](../architecture/mqtt-message-contract.md) beskriver topics, schemas och retained-regler.
+
 ## 2. Primära datakällor
 
 ```text
-TB4/logger_ha
+Nimbus + TB4
+logger_ha + TB4, historiskt kompatibilitetsspår
 Netatmo cloud
 logger_test
 framtida regndropps-/regndetekteringssensor
@@ -49,20 +58,18 @@ eller
 hydromet.point_observations
 ```
 
+Återhämtad mängd från ett räknarhopp får lagras, men ska bära kvalitetsinformation om att den exakta tidsfördelningen är osäker.
+
 ## 4. Nimbus-installation
 
-Första produktionsnära regnloggern kallas Nimbus.
+Nimbus är den första regnloggern som byggs enligt Nivå 1: robust fältpilot, inte skottsäker produktionslogger.
 
 ```yaml
 site_id: sannesholma
 logger_id: nimbus
 ha_prefix: regnlogger_nimbus
 hardware_model: waveshare_esp32_s3_eth_8di_8ro
-```
 
-Första regnkanal:
-
-```yaml
 channels:
   rain_1:
     physical_input: DI1
@@ -71,17 +78,64 @@ channels:
     mm_per_tip: 0.2
 ```
 
-Tolkning:
+Identiteterna betyder:
 
 ```text
-rain_1 = RainLens/Hydromets logiska regnkanal
-DI1    = fysisk ingång på Waveshare-enheten
-GPIO4  = intern hårdvarubindning enligt hårdvaruförteckningen
+sannesholma = platsen
+nimbus      = den fysiska loggern
+rain_1      = den logiska regnkanalen
+tb4_0p2     = den anslutna mätaren
+DI1         = fysisk ingång på vald hårdvarumodell
 ```
 
-Installationen ska normalt hänvisa till `physical_input: DI1`. Den interna kopplingen `DI1 → GPIO4` hör hemma i hårdvaruförteckningen för Waveshare-modellen.
+## 5. Upplöst hårdvarumappning
 
-## 5. Varaktigheter
+Installationen anger:
+
+```text
+hardware_model = waveshare_esp32_s3_eth_8di_8ro
+physical_input = DI1
+```
+
+Hårdvaruförteckningen löser detta till:
+
+```text
+DI1 / IN1
+→ GPIO4
+```
+
+Den kompletta kedjan för Nimbus är:
+
+```text
+TB4
+→ Waveshare DI1 / IN1
+→ GPIO4
+→ lokal firmwarekomponent
+→ channel_id rain_1
+```
+
+Installationen ska normalt lagra `physical_input: DI1`. `GPIO4` är intern metadata för Waveshare-modellen och får inte bli kanalidentitet i RainLens-kontraktet.
+
+## 6. Operativ Nivå 1-profil
+
+Nimbus ska följa [Nivå 1-designen](../architecture/level-1-logger-design.md).
+
+Det innebär i sammanfattning:
+
+```text
+lokal pulse_total
+lokal debounce/filterlogik
+begränsad persistent räknare
+retained channel state
+non-retained live tip-event
+periodisk heartbeat
+ingestbaserad gap-detektering
+synliga kvalitetsflaggor
+```
+
+Kanoniska topics och payloads definieras i [MQTT-kontraktet](../architecture/mqtt-message-contract.md).
+
+## 7. Varaktigheter
 
 Primära varaktigheter:
 
@@ -89,9 +143,9 @@ Primära varaktigheter:
 15, 30, 45, 60, 120, 360, 720, 1440 minuter
 ```
 
-5 minuter kan finnas som diagnostik/nice-to-have.
+5 minuter kan finnas som diagnostik eller kompletterande kort varaktighet.
 
-## 6. IDF och återkomstklassning
+## 8. IDF och återkomstklassning
 
 Första metodfamiljer:
 
@@ -101,7 +155,7 @@ Dahlström 2010
 klimatjusterade trösklar
 ```
 
-Framtida/jämförande:
+Framtida och jämförande metoder:
 
 ```text
 Dahlström 2018
@@ -109,10 +163,12 @@ klimatprediktorbaserad IDF
 lokal IDF
 ```
 
-## 7. Designprincip
+## 9. Designprinciper
 
 ```text
 Regnanalys byggs ovanpå hydromet core.
 Rådata skrivs aldrig över.
 Historik ska kunna reklassas när metoder eller trösklar ändras.
+Loggerns tekniska begränsningar och tidsosäkerhet ska vara synliga i datakvaliteten.
+Installation, hårdvarumodell och transportkontrakt ska hållas isär.
 ```
