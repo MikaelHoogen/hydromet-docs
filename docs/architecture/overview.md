@@ -37,17 +37,8 @@ Designprinciper:
 
 ```text
 Loggern behöver inte känna till Home Assistant.
-```
-
-```text
 MQTT-brokern behöver inte känna till databasen.
-```
-
-```text
 Databasen behöver inte känna till AppDaemon.
-```
-
-```text
 Ingest-komponenten är utbytbar.
 ```
 
@@ -64,6 +55,63 @@ Logger → MQTT → RainLens ingest → RainLens/Hydromet datamodell
 ```
 
 Det innebär att Home Assistant och AppDaemon kan vara första driftmiljö och adapter, men inte ska definiera kärnarkitekturen.
+
+## Regnloggerdokumentationens ansvar
+
+Regnloggern beskrivs i flera dokument eftersom hårdvarumodell, installation, loggerbeteende och transportkontrakt är olika saker.
+
+| Fråga | Kanoniskt dokument |
+|---|---|
+| Hur robust ska Nivå 1 vara och hur ska loggern räkna, filtrera, lagra och återhämta? | [Nivå 1-design för regnlogger](level-1-logger-design.md) |
+| Vilka MQTT-topics, payloadfält, schemas och retained-regler gäller? | [MQTT-meddelanden och loggerkontrakt](mqtt-message-contract.md) |
+| Hur skiljs `channel_id`, `physical_input` och `hardware_binding` åt? | [Hårdvaruförteckning](../hardware/index.md) |
+| Hur är Waveshare-enhetens DI-ingångar kopplade internt? | [Waveshare ESP32-S3 ETH 8DI 8RO](../hardware/waveshare-esp32-s3-eth-8di-8ro.md) |
+| Hur är den konkreta loggern Nimbus konfigurerad och vilken mätare sitter på kanalen? | [Regnobservatorium](../modules/rain-observatory.md) |
+
+Rekommenderad läsordning när arbetet återupptas:
+
+```text
+Nivå 1-design
+→ MQTT-kontrakt
+→ hårdvaruförteckning
+→ aktuell hårdvarumodell
+→ konkret installation
+```
+
+För Nimbus ska två olika riktningar hållas isär.
+
+Konfigurations- och uppslagskedjan är:
+
+```text
+channel_id rain_1
+→ physical_input DI1
+→ uppslag i hardware_model waveshare_esp32_s3_eth_8di_8ro
+→ hardware_binding GPIO4
+→ enhetsspecifik ESPHome-konfiguration
+```
+
+Den fysiska signal- och datakedjan är:
+
+```text
+TB4
+→ DI1 / IN1
+→ GPIO4
+→ lokal pulsräkning enligt Nivå 1
+→ retained state + live tip-event enligt MQTT-kontraktet
+→ utbytbar ingest-adapter
+→ Hydromet/RainLens datamodell
+```
+
+Designregel:
+
+```text
+Nivå 1-designen beskriver beteende.
+MQTT-kontraktet beskriver kommunikation.
+Hårdvaruförteckningen beskriver enhetens fysiska egenskaper.
+Regnobservatoriet beskriver den konkreta installationen.
+```
+
+Detaljer ska i första hand ändras i sitt kanoniska dokument. Andra dokument får sammanfatta eller ge exempel, men ska hänvisa tillbaka till den kanoniska källan för att minska risken för motstridiga versioner.
 
 ## Huvudprincip
 
