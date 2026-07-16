@@ -92,6 +92,7 @@ Det senare hör till en framtida Nivå 2.
 | Debounce | Egen filterlogik med minsta tid mellan accepterade pulser. |
 | Persistens | ESPHome `globals.restore_value` med rimligt `flash_write_interval`. |
 | Mottagare | Ingest-adaptern jämför events och state mot `pulse_total`. |
+| HA-diagnostik | Får läsa och visa loggerns lokala värden, men får inte vara en del av pulsräkning, återhämtning eller MQTT-kontrakt. |
 | Begränsning | Exakt tidsfördelning kan gå förlorad vid avbrott, men osäkerheten ska flaggas. |
 
 ## 5. Från fysisk ingång till logisk kanal
@@ -368,7 +369,66 @@ waveshare_esp32_s3_eth_8di_8ro + DI1
 
 Firmware får använda den upplösta bindningen `GPIO4`, men installationskonfigurationen och MQTT-kontraktet ska fortsätta använda `physical_input: DI1` respektive `channel_id: rain_1`.
 
-## 15. Testfall före fältdrift
+## 15. Home Assistant-diagnostik
+
+Nimbus och andra Nivå 1-loggrar får exponera lokal drift- och testdiagnostik till Home Assistant genom ESPHome Native API.
+
+Den kritiska Nivå 1-kedjan är:
+
+```text
+fysisk ingång
+→ lokal filter- och debounce-logik
+→ lokala räknare
+→ persistens
+→ MQTT state och events
+```
+
+Diagnostiklagret är separat:
+
+```text
+befintliga lokala värden
+→ skrivskyddade ESPHome-entiteter
+→ Native API
+→ Home Assistant
+```
+
+Diagnostiken får inte bli ett beroende för loggerfunktionen. Loggern ska fortsätta läsa ingången, räkna, lagra och publicera enligt MQTT-kontraktet även när Home Assistant eller Native API är otillgängligt.
+
+Designregler:
+
+- Home Assistant får inte äga, återställa, korrigera eller räkna `pulse_total`.
+- Diagnostikentiteter får bara läsa redan befintliga lokala värden och tillstånd.
+- Den firmwarekomponent som läser den fysiska ingången och räknar pulser ska inte ersättas av en HA-entitet.
+- Den fysiska ingången får vara intern i ESPHome och speglas till en separat skrivskyddad diagnostikentitet.
+- `api.reboot_timeout` ska vara `0s`, så att utebliven HA/API-anslutning inte startar om loggern.
+- Diagnostikens uppdateringsintervall ska vara måttligt och får inte skapa onödig last.
+- Diagnostikentiteter ska normalt märkas med `entity_category: diagnostic`.
+- HA-diagnostiken är inte en observationskälla, inte en del av MQTT-kontraktet och inte grund för databasens återhämtning.
+
+Rekommenderad minsta diagnostik för inkörning och drift:
+
+```text
+logger online
+fysisk ingångs aktuella tillstånd
+pulse_total
+raw_pulse_total
+ignored_pulse_total
+boot_count
+uptime
+time_valid
+MQTT ansluten
+senaste accepterade puls
+intervall mellan de senaste accepterade pulserna
+```
+
+Diagnostiken stärker verifierbarheten i Nivå 1, men den förändrar inte ansvarsfördelningen:
+
+```text
+Loggern räknar och publicerar.
+Home Assistant visar.
+```
+
+## 16. Testfall före fältdrift
 
 Innan loggern betraktas som Nivå 1 ska följande testas:
 
@@ -378,6 +438,7 @@ Innan loggern betraktas som Nivå 1 ska följande testas:
 | Simulerad studs | `raw_pulse_total` kan öka, men `pulse_total` ska bara öka en gång. |
 | Ingest nere under flera tips | Mängd återhämtas via state, tidsosäkerhet flaggas. |
 | Home Assistant restart | Retained state återläses utan dubbelräkning. |
+| Home Assistant/API frånkopplat | Loggern fortsätter läsa, räkna, lagra och publicera utan omstart. |
 | Brokeravbrott | Loggern fortsätter räkna lokalt, state visar total efter återkomst. |
 | Logger reboot | `boot_count` ökar och räknaren återställs eller avvikelse flaggas. |
 | Boot utan tid | Payload har `time_valid=false`. |
@@ -387,7 +448,7 @@ Innan loggern betraktas som Nivå 1 ska följande testas:
 | Räknarregression | Avvikelsen flaggas och döljs inte. |
 | Heartbeat saknas | Systemhälsa/larm kan reagera. |
 
-## 16. Slutsats
+## 17. Slutsats
 
 Bästa Nivå 1 för RainLens/Hydromet är:
 
@@ -400,6 +461,7 @@ ESPHome PoE/Ethernet
 + retained state vid varje accepterad vippning och periodiskt
 + non-retained tip-event vid varje accepterad vippning
 + heartbeat
++ skrivskyddad och icke-kritisk HA-diagnostik
 + ingestbaserad gap-detektering
 + kvalitetsflaggor för osäker tidsfördelning
 ```
