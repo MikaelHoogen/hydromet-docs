@@ -135,6 +135,14 @@ synliga kvalitetsflaggor
 
 Kanoniska topics och payloads definieras i [MQTT-kontraktet](../architecture/mqtt-message-contract.md).
 
+### Lokal drift- och testdiagnostik
+
+Nimbus får exponera skrivskyddad lokal diagnostik genom ESPHome Native API till Home Assistant, exempelvis ingångstillstånd, lokala räknare, uptime, tidstatus och anslutningsstatus.
+
+Dessa entiteter är endast till för inkörning, driftöverblick och felsökning. De är inte observationskälla, inte en del av RainLens MQTT-kontrakt och inte grund för databasens återhämtning eller kvalitetsbedömning.
+
+Nimbus ska därför fungera fullt ut även när Home Assistant eller Native API är otillgängligt. De styrande reglerna finns i [Nivå 1-designens avsnitt om Home Assistant-diagnostik](../architecture/level-1-logger-design.md#home-assistant-diagnostik).
+
 ## 7. Varaktigheter
 
 Primära varaktigheter:
