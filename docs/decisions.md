@@ -15,6 +15,8 @@ Detta dokument sammanfattar viktiga arkitekturbeslut. Detaljerade beslut dokumen
 | ADR-0007 | Klimatprediktorbaserad IDF är en framtida jämförelsemetod | Accepted |
 | ADR-0008 | Hydromet core byggs före regnmodul | Accepted |
 | ADR-0009 | Loggertest separeras från analys- och beräkningstest | Accepted |
+| ADR-0010 | Regnloggernivåer och mätintegritet | Accepted |
+| ADR-0011 | Nimbus har permanent parallell test- och produktionsingest | Accepted |
 
 ## Övriga inriktningsbeslut
 
@@ -106,3 +108,28 @@ Teknisk verifiering av loggerkedjan får använda separat testtabell, exempelvis
 Analys- och beräkningstest ska däremot gå genom samma observationsmodell som produktion, men märkas tydligt med exempelvis `is_test = true` och en testserie.
 
 Syftet är att kunna testa ESP, MQTT, pulsnummer och databasskrivning utan risk för produktionsberäkningar, men samtidigt kunna testa beräkningskedjan realistiskt när den delen ska verifieras.
+
+### Nimbus har permanent parallell ingest
+
+Den verkliga Nimbus-kedjan ska kunna växla mellan:
+
+```text
+hydromet.rain_logger_test_events
+hydromet.event_observations
+```
+
+Samma AppDaemon-implementation ska användas för båda målen. Utöver instansnamnet ska endast `target_table` skilja konfigurationerna.
+
+Testtabellen ska vara en strukturell spegel av produktionstabellen. Båda använder samma verkliga Nimbus-serie och aktiva mätuppställning. Den äldre syntetiska `logger_test`-kedjan och `public.*` är separata och påverkas inte.
+
+### Repoavgränsning för intern observatoriedrift
+
+```text
+hydromet-docs
+= metod, arkitektur, datamodell, SQL och långsiktig dokumentation
+
+home-assistant
+= aktiv implementation och driftmiljö
+```
+
+Filer som ska in i Home Assistant-repot tas fram som installationsunderlag och läggs in manuellt av användaren. `hydromet-core` används inte för Nimbus/AppDaemon/TimescaleDB-driften i detta skede.
