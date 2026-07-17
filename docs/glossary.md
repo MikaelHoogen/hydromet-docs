@@ -75,6 +75,8 @@ Definition av skyfall, separat från återkomsttid. I SMHI-sammanhang används o
 
 KISTERS/HyQuest TB4, en sifonmatad tipping bucket-regnmätare. Den kan vara bra för totalvolym men mycket korta tidsfördelningar behöver tolkas försiktigt.
 
+Nimbus använder varianten med 0,2 mm per vippning.
+
 ## Tipping bucket / vippmätare
 
 Regnmätare där vatten samlas i en vippa som tippar vid en viss volym, exempelvis 0,1 eller 0,2 mm.
@@ -82,6 +84,82 @@ Regnmätare där vatten samlas i en vippa som tippar vid en viss volym, exempelv
 ## Sifonmatad mätare
 
 Mätare där vatten kan samlas/batchas i en sifon innan det når tipping bucket-mekanismen. Detta kan påverka råpulsernas tidsfördelning.
+
+## Potentialfri kontakt
+
+Elektrisk kontakt som själv inte tillför någon spänning. Den öppnar eller sluter en extern eller intern mätslinga.
+
+KISTERS TB4:s reedutgång är en potentialfri kontakt.
+
+## Reedkontakt
+
+Magnetiskt manövrerad kontakt. I TB4 sluts kontakten kort när mekanismen tippar och magneten passerar reedkontakten.
+
+## DI1
+
+Digital ingång 1 på Waveshare-kortet. På modellen `ESP32-S3-POE-ETH-8DI-8DO` är DI1 internt bunden till `GPIO4`.
+
+## DGND
+
+Retur på Waveshare-kortets isolerade digitala fältsida.
+
+För Nimbus ska TB4:s potentialfria kontakt sluta `DI1` mot `DGND`.
+
+## DICOM / COM
+
+Gemensam terminal för aktivt externt spänningsmatad digital ingång på den aktuella Waveshare-modellen.
+
+Den används inte som retur för Nimbus potentialfria TB4-kontakt.
+
+## ESP32-GND
+
+Logikjord på ESP32-/processorsidan. Den är skild från den isolerade fältsidans `DGND` och ska inte användas som TB4-retur.
+
+## Galvanisk isolation
+
+Separation utan avsiktlig DC-ledande förbindelse mellan två kretsdelar. Energi eller signal kan ändå överföras via exempelvis transformator, isolerad DC/DC och optokopplare.
+
+Galvanisk isolation innebär inte att fältsidan är omatad och innebär inte noll parasitisk kapacitans.
+
+## Optokopplare
+
+Komponent som överför ett logiskt tillstånd med ljus över en isolationsbarriär. Den används för att separera Waveshares fältingång från ESP32-sidan.
+
+## Pull-up
+
+Motstånd eller intern GPIO-funktion som håller en signal på logiskt hög nivå när ingen aktiv kretsdel drar den låg.
+
+Nimbus målkonfiguration använder intern pull-up på `GPIO4`. Pull-up ligger på ESP32-sidan, matar inte TB4 och ersätter inte kopplingen `DI1–DGND`.
+
+## Aktiv låg
+
+Signal där det aktiva elektriska tillståndet är låg spänning eller logisk nolla.
+
+Nimbus förväntade GPIO-polaritet är aktiv låg och presenteras som logiskt `ON` i ESPHome genom `inverted: true`.
+
+## Flytande GPIO
+
+Digital ingång utan tillräckligt definierad hög eller låg vilonivå. Den kan växla på grund av mycket små störningar och ge falska flankhändelser.
+
+## Fältretur
+
+Den terminal som sluter den avsedda fältslingan för en fysisk ingång. För Nimbus `DI1` är fältreturen `DGND`.
+
+## Aktiv driftkonfiguration
+
+Den konfigurationsfil som beskriver vad en fysisk enhet faktiskt är avsedd att köra i sin driftmiljö.
+
+För Nimbus är detta:
+
+```text
+MikaelHoogen/home-assistant/esphome/regnlogger-nimbus.yaml
+```
+
+## Referensimplementation
+
+Kod eller konfiguration som visar en avsedd implementation men inte automatiskt är den driftsatta versionen.
+
+För Nimbus finns en sådan fil i `hydromet-core/deployments/sannesholma/nimbus/esphome.yaml`.
 
 ## Netatmo cloud
 

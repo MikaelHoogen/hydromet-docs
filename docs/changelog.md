@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.5 — 2026-07-17
+
+Dokumenterat och korrigerat den fysiska ingångskedjan för Nimbus, KISTERS TB4 och Waveshare ESP32-S3-POE-ETH-8DI-8DO.
+
+Tillagt:
+
+```text
+docs/hardware/waveshare-esp32-s3-poe-eth-8di-8do.md
+docs/installations/sannesholma-nimbus.md
+docs/runbooks/nimbus-di1-verification.md
+```
+
+Uppdaterat:
+
+```text
+docs/index.md
+docs/architecture/overview.md
+docs/architecture/level-1-logger-design.md
+docs/architecture/mqtt-message-contract.md
+docs/hardware/index.md
+docs/hardware/waveshare-esp32-s3-eth-8di-8ro.md
+docs/modules/rain-observatory.md
+docs/sources.md
+docs/glossary.md
+mkdocs.yml
+```
+
+Huvudkorrigeringar och beslut:
+
+- den exakta Nimbus-modellen är `Waveshare ESP32-S3-POE-ETH-8DI-8DO`, inte en 8DI-8RO-modell,
+- den kanoniska modellidentiteten är `waveshare_esp32_s3_poe_eth_8di_8do`,
+- KISTERS TB4:s potentialfria kontakt ska kopplas mellan `DI1` och `DGND`,
+- `DICOM/COM` används inte som retur för den passiva TB4-kontakten,
+- extern ingångsmatning behövs inte för TB4 eftersom Waveshare-kortet har isolerad terminalmatning,
+- `DI1` är internt bunden till `GPIO4`,
+- GPIO4:s målkonfiguration är `input + pullup + inverted`,
+- pull-up ligger på ESP32-sidan, matar inte TB4 och ersätter inte `DGND`,
+- en fri ledning som berörs med finger är inte ett giltigt funktionstest,
+- en fysisk digital Nivå 1-ingång måste ha dokumenterad fältretur, polaritet och definierad vilonivå,
+- aktiv driftkonfiguration och referensimplementation ska hållas isär och versionsspåras.
+
+Verifierad konfigurationsuppdelning:
+
+```text
+Aktiv driftkonfiguration:
+MikaelHoogen/home-assistant/esphome/regnlogger-nimbus.yaml
+
+Referensimplementation:
+MikaelHoogen/hydromet-core/deployments/sannesholma/nimbus/esphome.yaml
+```
+
+Kvarstående operativ avvikelse vid dokumentationstillfället:
+
+```text
+Dokumenterad målkonfiguration: GPIO4 input + pullup + inverted
+Aktiv granskad konfiguration:  GPIO4 input + inverted
+```
+
+Dokumentationspaketet ändrar inte den aktiva Home Assistant-/ESPHome-filen. Pull-up ska införas och verifieras i en separat firmwareändring.
+
 ## 0.4 — 2026-06-24
 
 Dokumenterat beslutet att skilja tekniska loggertest från analys- och beräkningstest.

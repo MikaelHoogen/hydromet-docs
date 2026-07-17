@@ -8,16 +8,17 @@ Detta dokument är styrande för MQTT-topics, meddelandetyper, retained-regler o
 
 Det beskriver inte:
 
-- hur en viss fysisk ingång är kopplad internt i en hårdvarumodell
-- hur en konkret loggerinstallation är kabelansluten
-- den fullständiga ESPHome-implementationen
-- analys- eller databaslogik utöver kontraktets gräns
+- hur en viss fysisk ingång är kopplad internt i en hårdvarumodell,
+- hur en konkret loggerinstallation är kabelansluten,
+- den fullständiga ESPHome-implementationen,
+- analys- eller databaslogik utöver kontraktets gräns.
 
 Relaterade styrande dokument:
 
 - [Nivå 1-design för regnlogger](level-1-logger-design.md) beskriver loggerbeteende, återhämtning och test.
-- [Hårdvaruförteckningen](../hardware/index.md) beskriver `physical_input` och `hardware_binding`.
-- [Regnobservatoriet](../modules/rain-observatory.md) beskriver Nimbus-installationen.
+- [Hårdvaruförteckningen](../hardware/index.md) beskriver `physical_input`, `field_return` och `hardware_binding`.
+- [Sännesholma Nimbus](../installations/sannesholma-nimbus.md) beskriver Nimbus-installationen och konfigurationskällorna.
+- [Regnobservatoriet](../modules/rain-observatory.md) beskriver hur observationerna används i domänen.
 
 ## 2. MQTT som stabilt gränssnitt
 
@@ -80,6 +81,7 @@ En logger kan ha flera kanaler och flera anslutna mätare. Mätartyp ska därfö
 ```text
 channel_id       = stabil kanalidentitet i kontraktet
 physical_input   = fysisk ingång på vald hårdvarumodell
+field_return     = fältslingans returterminal
 hardware_binding = hårdvarumodellens interna tekniska koppling
 ```
 
@@ -87,13 +89,23 @@ För Nimbus:
 
 ```text
 rain_1
-→ DI1 / IN1
-→ GPIO4 på Waveshare-modellen
+→ KISTERS TB4
+→ DI1 och DGND
+→ GPIO4 på Waveshare ESP32-S3-POE-ETH-8DI-8DO
 ```
 
-I detta exempel är `rain_1` kontraktet, `DI1` installationens fysiska ingång och `GPIO4` hårdvarumodellens interna bindning.
+I detta exempel är:
 
-`physical_input`, GPIO-nummer, Modbus-adress eller andra interna bindningar ska normalt inte skickas i varje observation. De hör hemma i installationens metadata och hårdvaruförteckningen.
+```text
+rain_1 = kontraktet
+DI1    = installationens fysiska ingång
+DGND   = installationens fältretur
+GPIO4  = hårdvarumodellens interna bindning
+```
+
+`physical_input`, `field_return`, GPIO-nummer, Modbus-adress eller andra interna bindningar ska normalt inte skickas i varje observation. De hör hemma i installationens metadata och hårdvaruförteckningen.
+
+`hardware_model` får finnas i heartbeat och diagnostik för spårbarhet, men ska inte användas som ersättning för den stabila kanalidentiteten.
 
 ## 5. Kanonisk topic-struktur
 
@@ -204,7 +216,7 @@ Exempel:
   "time_valid": true,
   "uptime_ms": 12350000,
   "boot_count": 7,
-  "firmware": "rainlens-field-prototype-v1",
+  "firmware": "rainlens-level1-0.1.0",
   "faults": []
 }
 ```
@@ -310,7 +322,7 @@ Exempel:
   "boot_count": 7,
   "time_valid": true,
   "network": "ethernet",
-  "hardware_model": "waveshare_esp32_s3_eth_8di_8ro",
+  "hardware_model": "waveshare_esp32_s3_poe_eth_8di_8do",
   "channels": {
     "rain_1": {
       "sensor_id": "tb4_0p2",
@@ -321,18 +333,20 @@ Exempel:
       "last_tip_uptime_ms": 12345678
     }
   },
-  "firmware": "rainlens-field-prototype-v1",
+  "firmware": "rainlens-level1-0.1.0",
   "faults": []
 }
 ```
 
 Heartbeat ska kunna användas för att upptäcka:
 
-- utebliven kontakt trots att retained status fortfarande visar `online`
-- reboot genom ändrad `boot_count` eller lägre `uptime_ms`
-- ogiltig tid
-- räknaravvikelse
-- logger- eller kanalrelaterade fel
+- utebliven kontakt trots att retained status fortfarande visar `online`,
+- reboot genom ändrad `boot_count` eller lägre `uptime_ms`,
+- ogiltig tid,
+- räknaravvikelse,
+- logger- eller kanalrelaterade fel.
+
+Hårdvarumodellen i heartbeat är diagnostisk metadata. Den ska stämma med den aktiva mätuppställningen och den firmware som faktiskt är driftsatt.
 
 ## 11. Räknarsemantik
 
@@ -346,10 +360,10 @@ ignored_pulse_total  = bortfiltrerade pulser
 
 Den används för att:
 
-- upptäcka saknade live-events
-- identifiera dubbletter
-- beräkna saknad ackumulerad mängd
-- upptäcka räknarregression efter reboot eller persistensproblem
+- upptäcka saknade live-events,
+- identifiera dubbletter,
+- beräkna saknad ackumulerad mängd,
+- upptäcka räknarregression efter reboot eller persistensproblem.
 
 Ett räknarhopp får inte omvandlas till påhittade tip-tider. Mängden kan återhämtas, men tidsfördelningen ska markeras som osäker.
 
@@ -396,11 +410,11 @@ observation_series
 
 För tipping bucket-data ska ingest-adaptern:
 
-- skriva normala live-tips som händelseobservationer
-- jämföra `tip.pulse_total` och `state.pulse_total` med senast kända räknare
-- undvika dubbelräkning
-- flagga räknarhopp och räknarregression
-- kunna återvinna saknad ackumulerad mängd utan att konstruera exakta tip-tider
+- skriva normala live-tips som händelseobservationer,
+- jämföra `tip.pulse_total` och `state.pulse_total` med senast kända räknare,
+- undvika dubbelräkning,
+- flagga räknarhopp och räknarregression,
+- kunna återvinna saknad ackumulerad mängd utan att konstruera exakta tip-tider.
 
 Fullständig återhämtningslogik beskrivs i [Nivå 1-designen](level-1-logger-design.md).
 
