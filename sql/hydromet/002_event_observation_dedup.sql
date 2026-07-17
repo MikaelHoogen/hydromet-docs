@@ -1,10 +1,11 @@
--- Hydromet event observation identity and deduplication
+-- Hydromet event observation identity, idempotency and ingest state
 --
 -- Purpose:
 --   1. Allow more than one event for the same series and event_type in one second.
 --   2. Keep hydromet.event_observations as a TimescaleDB hypertable.
 --   3. Provide database-backed idempotency without an invalid unique hypertable
 --      index on (series_id, event_type, counter).
+--   4. Store target-specific ingest state transactionally with event writes.
 --
 -- Actual database state observed 2026-07-17:
 --   - hydromet.event_observations exists and is a hypertable.
@@ -136,10 +137,38 @@ CREATE INDEX IF NOT EXISTS idx_event_ingest_keys_series_counter
     )
     WHERE counter IS NOT NULL;
 
+-- Target-specific receiver checkpoint. The AppDaemon ingest updates this row
+-- in the same database transaction as ledger/event writes. This avoids the
+-- crash window of a separate file checkpoint.
+CREATE TABLE IF NOT EXISTS hydromet.event_ingest_state (
+    target_table          text NOT NULL,
+    series_id             uuid NOT NULL
+                          REFERENCES hydromet.observation_series(series_id),
+
+    last_seen_pulse_total bigint NOT NULL,
+    last_boot_count       bigint,
+    updated_at            timestamptz NOT NULL DEFAULT now(),
+    metadata              jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+    PRIMARY KEY (target_table, series_id),
+
+    CONSTRAINT event_ingest_state_target_table_not_blank
+        CHECK (length(trim(target_table)) > 0),
+
+    CONSTRAINT event_ingest_state_pulse_total_nonnegative
+        CHECK (last_seen_pulse_total >= 0),
+
+    CONSTRAINT event_ingest_state_boot_count_nonnegative
+        CHECK (last_boot_count IS NULL OR last_boot_count >= 0)
+);
+
 COMMENT ON COLUMN hydromet.event_observations.event_id IS
 'Database event identity. Together with time it forms the Timescale-compatible primary key.';
 
 COMMENT ON TABLE hydromet.event_ingest_keys IS
 'Regular PostgreSQL idempotency ledger for event hypertables. Test and production are separated by target_table.';
+
+COMMENT ON TABLE hydromet.event_ingest_state IS
+'Transactional receiver checkpoint per target event table and observation series.';
 
 COMMIT;
