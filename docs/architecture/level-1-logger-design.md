@@ -12,6 +12,7 @@ Detta dokument är styrande för:
 
 ```text
 lokal pulsräkning
+fysisk ingångs robusthetskrav
 filter och debounce
 räknarpersistens
 publiceringsbeteende
@@ -23,16 +24,18 @@ test före fältdrift
 Detaljer som hör hemma på andra nivåer ska inte dupliceras här:
 
 - [MQTT-meddelanden och loggerkontrakt](mqtt-message-contract.md) är styrande för topics, payloadfält, schema och retained-regler.
-- [Hårdvaruförteckningen](../hardware/index.md) är styrande för fysiska ingångar och interna hårdvarubindningar.
-- [Waveshare ESP32-S3 ETH 8DI 8RO](../hardware/waveshare-esp32-s3-eth-8di-8ro.md) är styrande för mappningen `DI1 → GPIO4` på den aktuella modellen.
-- [Regnobservatoriet](../modules/rain-observatory.md) är styrande för den konkreta Nimbus-installationen.
+- [Hårdvaruförteckningen](../hardware/index.md) är styrande för fysiska ingångar, fältretur och interna hårdvarubindningar.
+- [Waveshare ESP32-S3-POE-ETH-8DI-8DO](../hardware/waveshare-esp32-s3-poe-eth-8di-8do.md) är styrande för `DI1–DGND`, `DI1 → GPIO4`, polaritet och målkonfiguration på den aktuella modellen.
+- [Sännesholma Nimbus](../installations/sannesholma-nimbus.md) är styrande för den konkreta installationen och konfigurationskällorna.
+- [Verifiering av Nimbus DI1-ingång](../runbooks/nimbus-di1-verification.md) är styrande för bänktest och acceptans.
+- [Regnobservatoriet](../modules/rain-observatory.md) beskriver hur observationerna används i regndomänen.
 
 ## 2. Rekommenderad arkitektur
 
 ```text
 Tipping bucket
-→ physical_input på vald hårdvara
-→ enhetsspecifik hardware_binding
+→ physical_input + field_return på vald hårdvara
+→ enhetsspecifik hardware_binding med definierad vilonivå
 → ESPHome PoE/Ethernet-logger
 → lokal monoton pulse_total
 → MQTT retained channel state
@@ -59,6 +62,7 @@ MQTT-event ska inte vara den enda sanningen. För Nivå 1 är loggerns lokala `p
 Nivå 1 har:
 
 ```text
+dokumenterad och verifierad fysisk ingång
 lokal räknare
 begränsad persistent lagring
 retained state
@@ -83,6 +87,8 @@ Det senare hör till en framtida Nivå 2.
 
 | Område | Beslut |
 |---|---|
+| Fysisk ingång | Fältkoppling, retur, aktiv nivå och vilonivå ska vara dokumenterade och bänkverifierade. |
+| GPIO-vilonivå | En digital ingång får inte tas i drift flytande eller med okänd pull-konfiguration. |
 | Primär räknare | Loggern äger `pulse_total`, inte AppDaemon. |
 | MQTT state | Kanalens state är retained och publiceras vid varje accepterad vippning samt periodiskt. |
 | MQTT tip-event | Publiceras vid varje accepterad vippning och är inte retained. |
@@ -97,11 +103,12 @@ Det senare hör till en framtida Nivå 2.
 
 ## 5. Från fysisk ingång till logisk kanal
 
-Nivå 1-designen förutsätter att installationen först pekar ut en fysisk ingång på vald hårdvarumodell.
+Nivå 1-designen förutsätter att installationen först pekar ut både fysisk ingång och avsedd fältretur på vald hårdvarumodell.
 
 ```text
 channel_id
 → physical_input
+→ field_return
 → uppslag i hårdvaruförteckningen
 → hardware_binding
 → firmwarekomponent som läser signalen
@@ -111,14 +118,47 @@ För Nimbus är detta:
 
 ```text
 rain_1
-→ DI1 / IN1
-→ GPIO4 på Waveshare-modellen
+→ KISTERS TB4 potentialfri kontakt
+→ DI1 / IN1 och DGND
+→ isolerad Waveshare-ingång
+→ GPIO4 på ESP32-sidan
 → ESPHome binary_sensor
 ```
 
 `GPIO4` är inte en del av RainLens-kontraktet. Det är den aktuella hårdvarumodellens interna bindning för `DI1`.
 
 På annan hårdvara kan samma `channel_id: rain_1` läsas via exempelvis en annan GPIO, en I/O-expander eller en Modbus-ingång.
+
+### Generell robusthetsregel
+
+Varje fysisk digital ingång ska dokumentera:
+
+```text
+vilka plintar som sluter fältslingan
+om extern matning krävs
+normal vilonivå
+aktiv elektrisk nivå
+pull-up eller pull-down
+inversion
+vilken flank som räknas
+```
+
+En fri ledning som berörs med fingret är inte ett giltigt funktionstest. Den kan fungera som antenn och koppla in störning kapacitivt.
+
+### Nimbus målkonfiguration
+
+```yaml
+pin:
+  number: GPIO4
+  mode:
+    input: true
+    pullup: true
+  inverted: true
+```
+
+Pull-up ligger på GPIO-sidan efter optokopplaren. Den matar inte TB4 och ersätter inte kopplingen mellan `DI1` och `DGND`.
+
+Ett komplett offentligt komponentnivåschema för Waveshare-kortet har inte påträffats. Därför ska den elektriska funktionen verifieras praktiskt och inte enbart härledas från antagna komponentvärden.
 
 ## 6. ESPHome-strategi
 
@@ -142,12 +182,13 @@ För Nivå 1 föredras en lokal firmwarekomponent med egen logik framför att l�
 
 Motivet är att loggern behöver kontroll över:
 
-- lokal räknare
-- debounce/filter
-- MQTT-publicering
-- tidstatus
-- diagnostik
-- state/event-separering
+- fysisk ingång och flank,
+- lokal räknare,
+- debounce/filter,
+- MQTT-publicering,
+- tidstatus,
+- diagnostik,
+- state/event-separering.
 
 ## 7. Räknare och debounce
 
@@ -168,6 +209,8 @@ debounce_ms = 250 ms
 Vid `0.2 mm` per tip motsvarar 250 ms en teoretisk intensitet långt över realistiskt regn. Det ger god marginal mot kontaktstuds utan att filtrera bort rimliga regnhändelser.
 
 Filtervärdet ska vara konfigurerbart och verifieras med den verkliga mätaren och ingångskretsen.
+
+Debounce löser inte en elektriskt flytande GPIO. Definierad vilonivå och debounce är separata krav.
 
 ## 8. Persistens
 
@@ -321,6 +364,8 @@ time_invalid
 time_distribution_uncertain
 reboot_persistence_uncertain
 heartbeat_missing
+physical_input_unverified
+input_idle_unstable
 ```
 
 Exakta namn kan låsas i datamodellen, men semantiken får inte tappas bort.
@@ -335,26 +380,27 @@ Nivå 1 kan hantera:
 
 Nivå 1 kan bara upptäcka eller flagga:
 
-- brokeravbrott medan det regnar
-- logger-reboot före senaste persistenta skrivning
-- start utan giltig tid
-- strömavbrott exakt vid puls
-- osäker tidsfördelning under avbrott
+- brokeravbrott medan det regnar,
+- logger-reboot före senaste persistenta skrivning,
+- start utan giltig tid,
+- strömavbrott exakt vid puls,
+- osäker tidsfördelning under avbrott.
 
 Detta är inte ett fel i Nivå 1, så länge osäkerheten är synlig och systemet inte hittar på precision som saknas.
 
 ## 14. Nimbus-installationen
 
-Nimbus-installationen definieras i regnobservatoriets installationsdokumentation:
+Nimbus-installationen definieras i [Sännesholma Nimbus](../installations/sannesholma-nimbus.md):
 
 ```yaml
 site_id: sannesholma
 logger_id: nimbus
-hardware_model: waveshare_esp32_s3_eth_8di_8ro
+hardware_model: waveshare_esp32_s3_poe_eth_8di_8do
 
 channels:
   rain_1:
     physical_input: DI1
+    field_return: DGND
     sensor_id: tb4_0p2
     sensor_type: tipping_bucket
     mm_per_tip: 0.2
@@ -363,11 +409,22 @@ channels:
 Hårdvaruförteckningen löser sedan:
 
 ```text
-waveshare_esp32_s3_eth_8di_8ro + DI1
+waveshare_esp32_s3_poe_eth_8di_8do + DI1 + DGND
+→ isolerad passiv kontaktkrets
 → GPIO4
 ```
 
 Firmware får använda den upplösta bindningen `GPIO4`, men installationskonfigurationen och MQTT-kontraktet ska fortsätta använda `physical_input: DI1` respektive `channel_id: rain_1`.
+
+Aktiv driftkonfiguration och referensimplementation ska hållas isär:
+
+```text
+Aktiv:
+MikaelHoogen/home-assistant/esphome/regnlogger-nimbus.yaml
+
+Referens:
+MikaelHoogen/hydromet-core/deployments/sannesholma/nimbus/esphome.yaml
+```
 
 ## 15. Home Assistant-diagnostik
 
@@ -434,7 +491,13 @@ Innan loggern betraktas som Nivå 1 ska följande testas:
 
 | Test | Förväntat resultat |
 |---|---|
+| Öppen fysisk ingång utan fältkabel | Stabil `OFF`, inga spontana pulser. |
+| Kontrollerad bygel mellan rätt plintar | Exakt en accepterad puls när kontakten sluts. |
+| Bygel tas bort | Ingången återgår till `OFF` utan extra regnpuls. |
+| Lös ledning berörs med finger | Betraktas inte som funktionsbevis; inga accepterade pulser i robust målkonfiguration. |
 | En fysisk vippning | `pulse_total` ökar med 1, state och tip publiceras. |
+| Tio vippningar | Exakt tio accepterade pulser. |
+| Hundra vippningar vid 0,2 mm/tip | Exakt 100 pulser och 20,0 mm. |
 | Simulerad studs | `raw_pulse_total` kan öka, men `pulse_total` ska bara öka en gång. |
 | Ingest nere under flera tips | Mängd återhämtas via state, tidsosäkerhet flaggas. |
 | Home Assistant restart | Retained state återläses utan dubbelräkning. |
@@ -448,12 +511,16 @@ Innan loggern betraktas som Nivå 1 ska följande testas:
 | Räknarregression | Avvikelsen flaggas och döljs inte. |
 | Heartbeat saknas | Systemhälsa/larm kan reagera. |
 
+Den enhetsspecifika proceduren finns i [Verifiering av Nimbus DI1-ingång](../runbooks/nimbus-di1-verification.md).
+
 ## 17. Slutsats
 
 Bästa Nivå 1 för RainLens/Hydromet är:
 
 ```text
 ESPHome PoE/Ethernet
++ dokumenterad och verifierad fysisk ingång
++ definierad elektrisk vilonivå
 + fysisk ingång upplöst via hårdvaruförteckning
 + lokal firmwarekomponent för pulsläsning
 + egen debounce/filterlogik
@@ -466,4 +533,4 @@ ESPHome PoE/Ethernet
 + kvalitetsflaggor för osäker tidsfördelning
 ```
 
-Detta är en stark och ärlig fältpilot. Den är inte Nivå 2, men den undviker att systemet ser fungerande ut samtidigt som pulser försvinner utan synlig flagga.
+Detta är en stark och ärlig fältpilot. Den är inte Nivå 2, men den undviker att systemet ser fungerande ut samtidigt som pulser försvinner eller ingången är elektriskt odefinierad utan synlig flagga.
