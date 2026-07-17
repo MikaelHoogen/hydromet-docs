@@ -3,6 +3,7 @@
 -- Expected:
 --   - no rows from mismatch queries,
 --   - both event tables are hypertables,
+--   - idempotency ledger and ingest-state table exist,
 --   - exactly one active Nimbus series and one active setup,
 --   - no duplicate counter groups in either event table.
 
@@ -10,7 +11,8 @@
 SELECT
     to_regclass('hydromet.event_observations') AS production_table,
     to_regclass('hydromet.rain_logger_test_events') AS test_table,
-    to_regclass('hydromet.event_ingest_keys') AS dedup_ledger;
+    to_regclass('hydromet.event_ingest_keys') AS dedup_ledger,
+    to_regclass('hydromet.event_ingest_state') AS ingest_state;
 
 SELECT
     hypertable_schema,
@@ -170,7 +172,23 @@ LEFT JOIN hydromet.measurement_setups ms
 WHERE s.series_key =
     'rain.sannesholma.nimbus.rain_1.tb4_0p2';
 
--- 7. Duplicate counter checks. Expected: no rows.
+-- 7. Target-specific ingest state.
+-- Before AppDaemon has been enabled this may return no rows.
+-- After both targets have established a baseline it should return two rows.
+SELECT
+    st.target_table,
+    s.series_key,
+    st.last_seen_pulse_total,
+    st.last_boot_count,
+    st.updated_at,
+    st.metadata
+FROM hydromet.event_ingest_state st
+JOIN hydromet.observation_series s USING (series_id)
+WHERE s.series_key =
+    'rain.sannesholma.nimbus.rain_1.tb4_0p2'
+ORDER BY st.target_table;
+
+-- 8. Duplicate counter checks. Expected: no rows.
 SELECT
     'production' AS target,
     series_id,
@@ -196,7 +214,26 @@ GROUP BY series_id, event_type, counter
 HAVING count(*) > 1
 ORDER BY target, counter;
 
--- 8. Recent Nimbus rows in both targets.
+-- 9. Ledger duplicates are impossible by primary key, but inspect recent keys.
+SELECT
+    target_table,
+    source_event_key,
+    event_time,
+    event_id,
+    event_type,
+    counter,
+    created_at
+FROM hydromet.event_ingest_keys
+WHERE series_id = (
+    SELECT series_id
+    FROM hydromet.observation_series
+    WHERE series_key =
+        'rain.sannesholma.nimbus.rain_1.tb4_0p2'
+)
+ORDER BY created_at DESC
+LIMIT 100;
+
+-- 10. Recent Nimbus rows in both targets.
 SELECT
     'production' AS target,
     e.time,
