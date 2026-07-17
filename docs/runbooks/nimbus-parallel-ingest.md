@@ -63,8 +63,16 @@ Filen:
 - lägger till `event_id`,
 - bevarar befintliga rader,
 - ersätter primärnyckeln med `(time, event_id)`,
+- ersätter counter-indexet med den gemensamma formen `(series_id, event_type, counter)`,
 - skapar `hydromet.event_ingest_keys`,
+- skapar `hydromet.event_ingest_state`,
 - tar bort den tidigare planerade ogiltiga unika counter-indexmodellen.
+
+`event_ingest_state` är mottagarens transaktionella checkpoint per:
+
+```text
+(target_table, series_id)
+```
 
 ### 3.2 Korrigerad 003
 
@@ -98,6 +106,7 @@ Godkänt resultat innebär:
 
 - båda måltabellerna finns,
 - båda är hypertables,
+- `event_ingest_keys` och `event_ingest_state` finns,
 - kolumnjämförelsen ger inga avvikelser,
 - båda primärnycklarna är `{time,event_id}`,
 - båda tabellerna har motsvarande foreign keys,
@@ -132,6 +141,8 @@ De två AppDaemon-blocken ska vara identiska förutom:
 target_table
 ```
 
+Appen ska läsa och uppdatera `hydromet.event_ingest_state`; en separat lokal checkpointfil ska inte vara primär sanning.
+
 ## 6. MQTT-plugin
 
 AppDaemon måste prenumerera på:
@@ -160,7 +171,20 @@ nimbus_ingest_production  avaktiverad
 
 Den tidigare direkta Nimbus-instansen av `RainTipIngestHydromet` får inte köras samtidigt.
 
-Vänta tills retained state har behandlats och testmålets baseline har satts.
+Vänta tills retained state har behandlats och testmålets databaslagrade baseline har satts.
+
+Verifiera baseline:
+
+```sql
+SELECT
+    target_table,
+    series_id,
+    last_seen_pulse_total,
+    last_boot_count,
+    updated_at
+FROM hydromet.event_ingest_state
+WHERE target_table = 'hydromet.rain_logger_test_events';
+```
 
 ## 8. Grundtest med verklig TB4
 
@@ -177,6 +201,7 @@ counter                                    10 stigande värden
 sum(value)                                 2.0 mm
 hydromet.event_observations                inga nya Nimbus-rader
 dubblettkontroll                           inga rader
+event_ingest_state                         uppdaterat till sista counter
 ```
 
 Varje rad ska ha:
@@ -200,9 +225,11 @@ Förväntat:
 
 ```text
 gamla counters skrivs inte om
-checkpoint återläses
+databasens mottagartillstånd återläses
 exakt en ny rain_tip-rad skapas
 ```
+
+För ett hårdare kraschtest ska testet även omfatta omstart direkt efter en lyckad databasinsert. Eftersom observation, idempotensnyckel och mottagartillstånd bekräftas i samma transaktion ska ingen dubbel recovery skapas.
 
 ## 10. Recovery-test
 
@@ -221,9 +248,10 @@ value = saknade tips × 0.2 mm
 quality_flag = time_distribution_uncertain
 metadata.recovered_tips = känt antal
 inga påhittade individuella tip-tider
+event_ingest_state uppdateras till retained pulse_total
 ```
 
-Radera inte testmålets checkpoint före detta test.
+Ändra eller radera inte testmålets rad i `hydromet.event_ingest_state` före detta test.
 
 ## 11. Växling till produktion
 
@@ -237,6 +265,8 @@ Växla i denna ordning:
 ```
 
 Tidigare testperiod backfylls inte till produktion.
+
+Kontrollera att en separat produktionsrad har skapats i `hydromet.event_ingest_state` med `target_table = 'hydromet.event_observations'`.
 
 Gör därefter en kontrollerad fysisk vippning.
 
@@ -257,7 +287,7 @@ value                                      0.2 mm
 3. aktivera nimbus_ingest_test
 ```
 
-Testmålets egen checkpoint används. Produktionstabellen ska inte påverkas.
+Testmålets egen rad i `hydromet.event_ingest_state` används. Produktionstabellen ska inte påverkas.
 
 ## 13. Felsökning
 
@@ -279,6 +309,7 @@ MQTT namespace och event_name stämmer
 Nimbus-identiteterna i payload stämmer
 DB-användaren har INSERT-rättighet
 hydromet.event_ingest_keys kan skrivas
+hydromet.event_ingest_state kan skrivas
 måltabellen kan skrivas
 ```
 
@@ -292,7 +323,7 @@ Stoppa automatisk driftbedömning och jämför:
 
 ```text
 loggerns pulse_total
-checkpoint
+hydromet.event_ingest_state.last_seen_pulse_total
 boot_count
 firmwarepersistens
 senaste databasrader
@@ -305,9 +336,11 @@ Regression får inte döljas eller normaliseras bort.
 Nimbus parallella ingest är godkänd när:
 
 - tabellpariteten är verifierad,
+- `event_ingest_keys` och `event_ingest_state` är verifierade,
 - tio verkliga tips ger exakt tio rader i testmålet,
 - omstart inte skapar dubbletter,
 - recovery ger rätt mängd och tidsosäker flagga,
+- databasens mottagartillstånd följer sista bekräftade counter,
 - växling till produktion bara skriver till produktionstabellen,
 - växling tillbaka bara skriver till testtabellen,
 - den äldre syntetiska testkedjan och `public.*` är opåverkade.
