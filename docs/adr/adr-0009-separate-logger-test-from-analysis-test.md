@@ -40,11 +40,29 @@ is_test = false
 series_key = rain.<sensor>.<logger>
 ```
 
+## Förtydligande för verkliga Nimbus
+
+Det permanenta parallella Nimbus-testet är ett tekniskt ingesttest av en verklig logger, inte den äldre syntetiska `logger_test`-scenariokällan.
+
+För Nimbus gäller enligt [ADR-0011](adr-0011-nimbus-parallel-test-production-ingest.md):
+
+```text
+verklig Nimbus MQTT
+→ samma AppDaemon-implementation
+→ testtabell eller produktionstabell
+```
+
+Test- och produktionstabellen ska ha samma struktur, constraints, hypertable-upplägg och indexform. AppDaemon-instansierna ska vara identiska bortsett från `target_table`.
+
+Nimbus använder samma verkliga `observation_series` och aktiva `measurement_setup` i båda målen. Isoleringen sker genom måltabellen, inte genom att den verkliga Nimbus-serien märks som syntetisk testserie.
+
+Detta förtydligande ersätter inte regeln att analys- och beräkningstest ska använda ordinarie observationsmodell med `is_test = true`. Det gäller endast den tekniska parallella Nimbus-ingesten.
+
 ## Konsekvenser
 
 Detta gör att loggern kan testas isolerat utan risk för produktionsberäkningar, samtidigt som analyskedjan senare kan testas realistiskt i samma modell som produktion.
 
-Nackdelen är att tekniska loggertest inte testar exakt samma insertväg som produktion. Därför behövs även ett senare beräkningstest i ordinarie observationsmodell.
+Nackdelen är att tekniska loggertest inte testar exakt samma tabellnamn som produktion. För Nimbus reduceras denna skillnad genom att tabellerna hålls strukturellt identiska och samma ingestkod används för båda målen.
 
 ## Designregler
 
@@ -54,6 +72,10 @@ Loggern ska inte behöva veta om körningen är test eller produktion.
 
 ```text
 Tekniska loggertest får isoleras i separat testtabell.
+```
+
+```text
+Nimbus tekniska test- och produktionstabell ska vara strukturella speglar.
 ```
 
 ```text
