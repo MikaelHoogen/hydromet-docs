@@ -47,7 +47,7 @@ channel_id
 sensor_id
 ```
 
-En konkret installation beskriver vilken fysisk ingång som används för en viss logisk kanal. Hårdvaruförteckningen beskriver sedan hur just den ingången är uppbyggd internt på den valda modellen.
+En konkret installation beskriver vilken fysisk ingång som används för en viss logisk kanal och, där det är relevant, vilka ytterligare fältanslutningar som krävs. Hårdvaruförteckningen beskriver sedan hur just den ingången är uppbyggd internt på den valda modellen.
 
 ## Tre informationsnivåer
 
@@ -76,7 +76,7 @@ channels:
     mm_per_tip: 0.2
 ```
 
-Installationen säger att `rain_1` använder `DI1` och `DGND` på den valda hårdvarumodellen.
+Installationen säger att `rain_1` använder `DI1` och, för just denna passiva kontaktkrets, returterminalen `DGND` på den valda hårdvarumodellen.
 
 ### 3. Hårdvarumodell
 
@@ -96,7 +96,7 @@ physical_inputs:
       inverted: true
 ```
 
-Hårdvarumodellen löser `DI1` till den interna bindningen `GPIO4` och beskriver även nödvändig elektrisk retur, polaritet och rekommenderad GPIO-vilonivå.
+Hårdvarumodellen löser `DI1` till den interna bindningen `GPIO4` och beskriver även relevant elektrisk retur, polaritet och rekommenderad GPIO-vilonivå.
 
 ## Begrepp
 
@@ -112,7 +112,11 @@ Värdet tolkas alltid tillsammans med `hardware_model`.
 
 ### `field_return`
 
-Den terminal som sluter den avsedda fältslingan för en fysisk ingång. För passiv kontakt på den aktuella Waveshare-modellen är detta `DGND`, inte `DICOM/COM` eller ESP32-`GND`.
+Valfri installationsmetadata för den terminal som sluter den avsedda fältslingan när en sådan retur är relevant och entydig.
+
+För Nimbus passiva kontakt på den aktuella Waveshare-modellen är detta `DGND`, motsvarande den fysiska plint som är märkt `GND` i gruppen **Digital Inputs**. Det är inte `DICOM/COM` och inte ESP32-logikjord.
+
+Alla framtida gränssnitt har inte en enda meningsfull returterminal. Seriella bussar, differentiella signaler, strömloopar och andra I/O-typer kan därför behöva andra anslutningsfält än `field_return`.
 
 ### `hardware_binding`
 
@@ -131,18 +135,20 @@ inversion
 
 ### `DICOM/COM`
 
-Common-terminal för aktivt externt spänningsmatad digital ingång på den aktuella Waveshare-modellen. Den används inte som retur för Nimbus potentialfria TB4-kontakt.
+Common-terminal för aktivt externt spänningsmatad digital ingång på den aktuella Waveshare-modellen. På den fysiska plinten är den märkt `COM`. Den används inte som retur för Nimbus potentialfria TB4-kontakt.
 
 ### `DGND`
 
-Retur på den isolerade digitala fältsidan. TB4 ska sluta `DI1` mot `DGND`.
+Dokumentationsnamn för retur på den isolerade digitala fältsidan. På den fysiska plinten är den märkt `GND` under **Digital Inputs**. TB4 ska sluta `DI1` mot denna terminal.
+
+Denna `GND` får inte blandas ihop med ESP32-logikjord.
 
 ## Designregel
 
 ```text
 channel_id är kontrakt.
 physical_input är installationsmappning mot vald hårdvarumodell.
-field_return beskriver den fysiska strömvägens retur.
+field_return är valfri fysisk anslutningsmetadata där sådan retur är relevant.
 hardware_binding är hårdvarumodellens interna teknik.
 ```
 
