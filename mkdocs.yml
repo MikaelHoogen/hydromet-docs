@@ -71,6 +71,7 @@ nav:
       - SQL-plan: architecture/sql-plan.md
       - Nivå 1-design för regnlogger: architecture/level-1-logger-design.md
       - MQTT-meddelanden och loggerkontrakt: architecture/mqtt-message-contract.md
+      - Nimbus parallella ingest: architecture/nimbus-parallel-ingest.md
       - Systemhälsa och larm: architecture/system-health.md
   - Hårdvara:
       - Förteckning: hardware/index.md
@@ -79,6 +80,7 @@ nav:
       - Sännesholma Nimbus: installations/sannesholma-nimbus.md
   - Drift och verifiering:
       - Nimbus DI1-ingång: runbooks/nimbus-di1-verification.md
+      - Nimbus parallell ingest: runbooks/nimbus-parallel-ingest.md
   - Moduler:
       - Regnobservatorium: modules/rain-observatory.md
       - Regnanalysmoduler, detaljer: modules/rain-analysis-modules.md
@@ -102,3 +104,5 @@ nav:
       - ADR-0007 Klimatprediktorbaserad IDF är en framtida jämförelsemetod: adr/adr-0007-climate-predictor-idf-is-future-method.md
       - ADR-0008 Hydromet core byggs före regnmodul: adr/adr-0008-hydromet-core-before-rain-module.md
       - ADR-0009 Separera loggertest från analys- och beräkningstest: adr/adr-0009-separate-logger-test-from-analysis-test.md
+      - ADR-0010 Regnloggernivåer och mätintegritet: adr/adr-0010-rain-logger-reliability-levels.md
+      - ADR-0011 Nimbus parallella test- och produktionsingest: adr/adr-0011-nimbus-parallel-test-production-ingest.md

@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.6 — 2026-07-17
+
+Dokumenterat och korrigerat den permanenta parallella test- och produktionsingesten för verkliga Nimbus.
+
+Tillagt:
+
+```text
+docs/architecture/nimbus-parallel-ingest.md
+docs/runbooks/nimbus-parallel-ingest.md
+docs/adr/adr-0011-nimbus-parallel-test-production-ingest.md
+sql/hydromet/004_seed_nimbus_series.sql
+sql/hydromet/verify_nimbus_parallel_storage.sql
+```
+
+Uppdaterat:
+
+```text
+sql/hydromet/002_event_observation_dedup.sql
+sql/hydromet/003_rain_logger_test_events.sql
+docs/adr/adr-0009-separate-logger-test-from-analysis-test.md
+docs/decisions.md
+mkdocs.yml
+```
+
+Huvudkorrigeringar och beslut:
+
+- arbetet gäller verkliga Nimbus och är helt separat från den äldre syntetiska `logger_test`-kedjan och `public.*`,
+- Nimbus har ett permanent testmål och ett produktionsmål,
+- samma AppDaemon-implementation ska användas för båda målen,
+- utöver instansnamnet ska endast `target_table` skilja konfigurationerna,
+- `hydromet.rain_logger_test_events` ska vara en strukturell spegel av `hydromet.event_observations`,
+- båda målen använder samma verkliga Nimbus-serie och aktiva mätuppställning,
+- `event_id` införs så att flera verkliga tips samma sekund kan lagras utan fabricerade millisekunder,
+- idempotens hanteras transaktionellt i `hydromet.event_ingest_keys` i stället för med ett ogiltigt unikt hypertable-index,
+- återhämtad mängd lagras som `rain_recovery` med `time_distribution_uncertain`,
+- `hydromet-docs` är enda repo som ändras i detta arbete,
+- AppDaemon- och HA-filer tas fram som installationsunderlag och läggs in manuellt av användaren,
+- `hydromet-core` berörs inte.
+
 ## 0.5 — 2026-07-17
 
 Dokumenterat och korrigerat den fysiska ingångskedjan för Nimbus, KISTERS TB4 och Waveshare ESP32-S3-POE-ETH-8DI-8DO.
