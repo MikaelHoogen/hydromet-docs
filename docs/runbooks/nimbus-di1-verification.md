@@ -15,6 +15,8 @@ KISTERS TB4
 → lokal pulsräkning
 ```
 
+På den fysiska plinten är `DGND` märkt `GND` i gruppen **Digital Inputs**. `DICOM` är märkt `COM`. Dessa plinttexter får inte blandas ihop med ESP32-logikjord.
+
 Testet ska ersätta lösa kabel-, finger- och COM-tester som inte ger ett kontrollerat elektriskt tillstånd.
 
 ## 2. Säkerhetsgräns
@@ -39,6 +41,7 @@ Verifiera före test:
 ```yaml
 hardware_model: waveshare_esp32_s3_poe_eth_8di_8do
 physical_input: DI1
+field_return: DGND
 hardware_binding: GPIO4
 sensor_model: KISTERS TB4
 mm_per_tip: 0.2
@@ -74,7 +77,7 @@ Bekräfta att rätt reedutgång och rätt ledarpar används. TB4 kan ha dubbel r
 
 ## 5. Test B – öppen loggeringång
 
-Koppla bort all fältkabel från `DI1` och `DGND`.
+Koppla bort all fältkabel från `DI1` och den fysiska `GND`-plinten under **Digital Inputs**.
 
 Starta loggern och observera:
 
@@ -96,10 +99,11 @@ Låt testet pågå minst fem minuter vid första verifieringen.
 
 ## 6. Test C – kontrollerad bygel DI1–DGND
 
-Använd en kort, isolerad kabelbit som bygel.
+Använd en kort, isolerad kabelbit som bygel mellan `DI1` och den fysiska `GND`-plinten i gruppen **Digital Inputs**.
 
 ```text
-DI1 o────────o DGND
+DI1 o────────o GND
+               └─ DGND i dokumentationen
 ```
 
 ### När bygeln sätts dit
@@ -125,9 +129,9 @@ Upprepa fem gånger med tydliga pauser. Varje slutning ska ge exakt en acceptera
 
 ## 7. Test D – fel terminal som negativ kontroll
 
-En kort bygel mellan `DI1` och `DICOM/COM` är inte den korrekta passiva kopplingen och ska inte användas som normal testmetod.
+En kort bygel mellan `DI1` och den fysiska `COM`-plinten (`DICOM` i diagrammet) är inte den korrekta passiva kopplingen och ska inte användas som normal testmetod.
 
-Om en säker negativ kontroll ändå genomförs av kvalificerad person ska resultatet dokumenteras som just negativ kontroll, inte som dry-contact-verifiering. Kortslut aldrig `DICOM/COM` mot `DGND`.
+Om en säker negativ kontroll ändå genomförs av kvalificerad person ska resultatet dokumenteras som just negativ kontroll, inte som dry-contact-verifiering. Kortslut aldrig `COM/DICOM` mot `GND/DGND`.
 
 ## 8. Test E – TB4 inkopplad
 
@@ -135,7 +139,8 @@ Anslut:
 
 ```text
 TB4 ledare 1 → DI1
-TB4 ledare 2 → DGND
+TB4 ledare 2 → GND under Digital Inputs
+                └─ DGND i dokumentationen
 ```
 
 Gör tio långsamma manuella vippningar.
@@ -167,17 +172,17 @@ Avvikelse innebär att installationen inte godkänns för fältdrift.
 
 ## 10. Test G – störning och flytande ledning
 
-Detta test görs endast för att förstå störkänslighet, inte för att bevisa normal funktion.
+Detta test görs endast för att förstå störkänslighet och lokalisera fel. Det är inte ett funktions- eller acceptanstest.
 
 ### Ingen kabel
 
 Förväntat: stabilt `OFF`, inga pulser.
 
-### Lös ledning på DI1
+### Lös ledning på DI1 eller GND/DGND
 
-Förväntat i en robust konfiguration: inga accepterade pulser.
+Ingen normativ godkänd/underkänd förväntan sätts för en lång, öppen fältledning. En sådan ledning fungerar som antenn och kan koppla störning till den isolerade ingångssidan. Intern pull-up stabiliserar GPIO4 efter optokopplaren men kan inte garantera att optokopplaringången aldrig aktiveras av stark fältstörning.
 
-En lös ledning fungerar som antenn. Beröring med finger kan koppla in störning kapacitivt och är därför inte ett giltigt pulstest.
+Beröring med finger är därför inte ett giltigt pulstest och ingår inte i acceptanskriterierna.
 
 ### Tolkning med indikator
 
@@ -188,7 +193,7 @@ En lös ledning fungerar som antenn. Beröring med finger kan koppla in störnin
 | Blinkar | Växlar inte | Optokopplarutgång, fel GPIO eller firmwareproblem |
 | Still | Stabil | Ingen aktivering, normalt viloläge |
 
-Indikatorns betydelse ska först kalibreras med det kontrollerade `DI1–DGND`-testet.
+Indikatorns betydelse ska först kalibreras med det kontrollerade `DI1–GND/DGND`-testet.
 
 ## 11. Test H – pull-up före och efter
 
@@ -211,7 +216,7 @@ mode:
 
 Om variant 1 ger instabil nivå eller falska pulser medan variant 2 är stabil visar testet att den interna pull-up-funktionen behövs för en definierad vilonivå i den aktuella implementationen.
 
-Testet ska inte användas som enda underlag för att uttala sig om kortets fullständiga interna schema.
+Testet ska inte användas som enda underlag för att uttala sig om kortets fullständiga interna schema eller om störningar på fältsidan.
 
 ## 12. Valfria multimetermätningar
 
@@ -220,8 +225,8 @@ Testet ska inte användas som enda underlag för att uttala sig om kortets fulls
 Mät kontinuitet mellan:
 
 ```text
-DGND ↔ ESP32-GND
-DICOM ↔ ESP32-GND
+GND under Digital Inputs / DGND ↔ ESP32-GND
+COM / DICOM                     ↔ ESP32-GND
 ```
 
 Förväntat: ingen stabil lågohmig förbindelse.
@@ -231,13 +236,13 @@ Förväntat: ingen stabil lågohmig förbindelse.
 Mät i första hand differentialt på fältsidan:
 
 ```text
-DICOM mot DGND
-DI1 mot DGND
+COM/DICOM mot GND/DGND
+DI1 mot GND/DGND
 ```
 
 Waveshare anger intern isolerad terminalmatning. Exakt spänning och loopström ska dokumenteras som mätresultat, inte antas utan mätning.
 
-Mät aldrig ström genom att lägga amperemetern direkt mellan `DICOM` och `DGND`. Strömmätning görs endast i serie i en kontrollerad ingångsslinga.
+Mät aldrig ström genom att lägga amperemetern direkt mellan `COM/DICOM` och `GND/DGND`. Strömmätning görs endast i serie i en kontrollerad ingångsslinga.
 
 ## 13. Driftmatris
 
@@ -279,7 +284,8 @@ results:
   ten_tips_counted: <antal>
   hundred_tips_counted: <antal>
   hundred_tips_rain_mm: <värde>
-  spontaneous_pulses: <antal>
+  spontaneous_pulses_with_no_cable: <antal>
+  loose_wire_observation: <text, ej acceptanskriterium>
 acceptance: passed | failed
 notes: <text>
 ```
@@ -287,10 +293,10 @@ notes: <text>
 ## 15. Godkännanderegel
 
 ```text
-Ingen kontrollerad DI1–DGND-funktion
+Ingen kontrollerad DI1–GND/DGND-funktion
 → ingen godkänd TB4-installation.
 
-Ingen stabil vilonivå
+Ingen stabil vilonivå utan fältkabel eller med korrekt ansluten TB4 i vila
 → ingen godkänd Nivå 1-ingång.
 
 100 vippningar ≠ 100 accepterade pulser
