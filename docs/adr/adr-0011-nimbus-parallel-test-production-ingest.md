@@ -70,7 +70,7 @@ Utöver AppDaemon-instansens namn är den enda avsiktliga konfigurationsskillnad
 target_table
 ```
 
-Måltabellen används också internt för att härleda separata checkpoints och separata dedupliceringsområden.
+Måltabellen används internt för att separera idempotens och mottagartillstånd mellan test och produktion.
 
 ### Tabellparitet
 
@@ -121,7 +121,27 @@ target_table
 source_event_key
 ```
 
+`source_event_key` ska härledas från stabil loggeridentitet och stabil counter-/intervallsemantik. Föränderliga diagnostikfält som aktuell uptime får inte vara nödvändiga för att samma källhändelse ska kännas igen efter omstart.
+
 Ledger- och observationsinsert ska ske i samma databastransaktion. Test och produktion får därmed separata idempotensområden trots att de läser samma loggeridentitet.
+
+### Transaktionellt mottagartillstånd
+
+Mottagarens senaste bekräftade `pulse_total` ska lagras i:
+
+```text
+hydromet.event_ingest_state
+```
+
+Nyckeln är:
+
+```text
+(target_table, series_id)
+```
+
+Baseline, normal tip, recovery och mottagartillstånd ska uppdateras i samma databastransaktion när en observation skrivs. En separat filcheckpoint får inte vara den primära sanningen, eftersom en krasch efter databascommit men före filskrivning annars kan orsaka dubbel recovery.
+
+När AppDaemon startar ska den läsa senaste målspecifika mottagartillstånd från databasen.
 
 ### Normal puls och återhämtning
 
@@ -163,7 +183,7 @@ testinstans avaktiverad
 produktionsinstans aktiverad
 ```
 
-När ett mål aktiveras första gången används dess retained `pulse_total` som målets baseline. Testperiodens tidigare pulser ska därför inte automatiskt backfyllas till produktion.
+När ett mål aktiveras första gången används dess retained `pulse_total` som målets databaslagrade baseline. Testperiodens tidigare pulser ska därför inte automatiskt backfyllas till produktion.
 
 ## Repoavgränsning
 
@@ -187,6 +207,7 @@ AppDaemon- och HA-filer skrivs inte automatiskt från detta arbete till Home Ass
 - test- och produktionskod kan inte glida isär utan att konfigurationspariteten bryts,
 - flera tips under samma sekund kan lagras korrekt,
 - dubbletter kan stoppas transaktionellt,
+- mottagartillstånd och observationscommit kan inte glida isär på grund av en separat filcheckpoint,
 - återhämtad mängd kan lagras utan falsk tidsprecision,
 - den äldre syntetiska testkedjan påverkas inte.
 
