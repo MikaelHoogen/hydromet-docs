@@ -50,7 +50,7 @@ respektive:
 target_table: hydromet.event_observations
 ```
 
-Checkpointfil och idempotensområde ska härledas från `target_table` och ska därför vara separata utan att ytterligare konfigurationsskillnader införs.
+Idempotens och mottagartillstånd separeras internt genom `target_table`. Inga separata filvägar eller andra beteendeskillnader ska behöva konfigureras.
 
 ## 4. Gemensam serie och mätuppställning
 
@@ -143,9 +143,44 @@ med primärnyckeln:
 (target_table, source_event_key)
 ```
 
-Ledger- och observationsinsert sker i samma transaktion. Om observationens insert misslyckas ska inte heller ledgernyckeln eller AppDaemon-checkpointen flyttas fram.
+`source_event_key` ska vara stabil över omstarter. Den ska bygga på loggeridentitet och counter-/intervallsemantik, inte på föränderliga diagnostikvärden som aktuell uptime.
 
-## 8. Tip, gap och recovery
+Ledger- och observationsinsert sker i samma transaktion. Om observationens insert misslyckas ska inte heller ledgernyckeln bekräftas.
+
+## 8. Transaktionellt mottagartillstånd
+
+Senaste bekräftade `pulse_total` för varje mål lagras i:
+
+```text
+hydromet.event_ingest_state
+```
+
+med nyckeln:
+
+```text
+(target_table, series_id)
+```
+
+Tabellen innehåller minst:
+
+```text
+last_seen_pulse_total
+last_boot_count
+updated_at
+metadata
+```
+
+När en normal tip eller recovery lagras ska följande ske i samma transaktion:
+
+```text
+idempotensnyckel
+→ observation
+→ uppdaterat mottagartillstånd
+```
+
+En separat filcheckpoint är inte primär sanning. Det undviker läget där databastransaktionen lyckas men en efterföljande filskrivning misslyckas eller avbryts, vilket annars kan orsaka dubbel recovery efter omstart.
+
+## 9. Tip, gap och recovery
 
 Normal tip:
 
@@ -157,7 +192,7 @@ counter = pulse_total
 
 Om ett live-event visar ett räknarhopp lagras först den saknade mängden som `rain_recovery`, därefter den mottagna normala pulsen.
 
-Om retained state visar ett högre `pulse_total` än checkpoint lagras:
+Om retained state visar ett högre `pulse_total` än databasens mottagartillstånd lagras:
 
 ```text
 event_type = rain_recovery
@@ -167,20 +202,20 @@ quality_flag = time_distribution_uncertain
 
 Recovery-tiden är mottagartid. Individuella tip-tider konstrueras inte.
 
-## 9. Baseline vid växling
+## 10. Baseline vid växling
 
-Test och produktion har var sin checkpoint.
+Test och produktion har var sitt databaslagrat mottagartillstånd.
 
 När ett mål aktiveras för första gången:
 
 ```text
 retained state pulse_total
-→ baseline för just det målet
+→ baseline för just (target_table, series_id)
 ```
 
 Därmed kopieras inte tidigare testperiod automatiskt in i produktion när produktionsinstansen aktiveras.
 
-## 10. Repo- och driftgräns
+## 11. Repo- och driftgräns
 
 ```text
 hydromet-docs
@@ -194,14 +229,14 @@ Filer som hör till Home Assistant tas fram som installationsunderlag och läggs
 
 `hydromet-core` är inte del av denna implementation.
 
-## 11. Migrationsordning
+## 12. Migrationsordning
 
 ```text
 001_core_observations.sql              redan körd
-002_event_observation_dedup.sql        korrigerar identitet och idempotens
+002_event_observation_dedup.sql        korrigerar identitet, idempotens och mottagartillstånd
 003_rain_logger_test_events.sql        skapar spegeltabellen
 004_seed_nimbus_series.sql             registrerar Nimbus-serien och setup
-verify_nimbus_parallel_storage.sql     kontrollerar paritet och register
+verify_nimbus_parallel_storage.sql     kontrollerar paritet, ledger, state och register
 ```
 
 Körordning och acceptanstest finns i [Nimbus parallell ingest](../runbooks/nimbus-parallel-ingest.md).
