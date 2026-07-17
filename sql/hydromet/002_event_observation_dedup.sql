@@ -10,6 +10,8 @@
 --   - hydromet.event_observations exists and is a hypertable.
 --   - it contains only two old proof-of-concept rows.
 --   - the old UNIQUE counter migration has not been applied.
+--   - idx_event_observations_counter exists in its older
+--     (series_id, counter) form.
 --
 -- This migration preserves existing rows. It does not touch public.*.
 
@@ -86,7 +88,11 @@ $$;
 -- Such an index is not valid for a hypertable partitioned on time.
 DROP INDEX IF EXISTS hydromet.uq_event_observations_series_event_counter;
 
-CREATE INDEX IF NOT EXISTS idx_event_observations_counter
+-- 001 created idx_event_observations_counter as (series_id, counter).
+-- Replace it explicitly so production and test get the same index shape.
+DROP INDEX IF EXISTS hydromet.idx_event_observations_counter;
+
+CREATE INDEX idx_event_observations_counter
     ON hydromet.event_observations (series_id, event_type, counter)
     WHERE counter IS NOT NULL;
 
