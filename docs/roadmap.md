@@ -45,9 +45,11 @@ Mål: skapa en generell observationsgrund som kan bära regn, nivå, flöde, mar
 6. Skyfallsdefinition
 7. Nära-skyfall
 8. HA-sammanfattning
+9. Händelsekort och lokalt händelsearkiv
+10. Manuell effektobservation efter relevant händelse
 ```
 
-## Fas 3: Diagnos och jämförelse
+## Fas 3: Diagnos, jämförelse och analysverifiering
 
 ```text
 1. Mätaröverensstämmelse
@@ -55,8 +57,12 @@ Mål: skapa en generell observationsgrund som kan bära regn, nivå, flöde, mar
 3. Mätarkedjans hälsa
 4. Metodskillnad SMHI/Dahlström
 5. Metodosäkerhet
-6. Scenariobibliotek för logger_test
+6. Versionshanterat scenariobibliotek för logger_test
+7. Händelsefingeravtryck
+8. Explorativ händelselikhet
 ```
+
+Teknisk verifiering av verkliga loggrar och analys-/beräkningstest ska fortsatt hållas isär.
 
 ## Fas 4: Fler hydromet-domäner
 
@@ -70,18 +76,20 @@ Mål: skapa en generell observationsgrund som kan bära regn, nivå, flöde, mar
 7. pumpstatus / bräddning / tömningstid
 ```
 
-## Fas 5: Historik och lokal IDF
+## Fas 5: Historik, lokalt arkiv och lokal IDF
 
 ```text
 1. Årsmax per varaktighet
 2. POT-kandidater
 3. Datatäckning per år
 4. Mätuppställningsversioner
-5. Lokala topplistor
-6. Lokal säsongsprofil
-7. Extremvärdesmodeller
-8. Lokala IDF-estimat
-9. Reklassning av historik
+5. Kalibrerings-, kontroll- och underhållshistorik
+6. Lokala topplistor
+7. Lokal säsongsprofil
+8. Extremvärdesmodeller
+9. Lokala IDF-estimat
+10. Reklassning av historik
+11. Export av händelsekort och observationsrapporter
 ```
 
 ## Fas 6: Dokumentation och publicering
@@ -92,4 +100,12 @@ Mål: skapa en generell observationsgrund som kan bära regn, nivå, flöde, mar
 3. Modulkatalog
 4. GitHub Pages
 5. Ren uppdelning mellan hydromet-docs och home-assistant
+```
+
+## Fördjupad specifikation
+
+De utforskande och arkivorienterade funktionerna beskrivs i:
+
+```text
+docs/modules/rain-exploration-and-observatory-experience.md
 ```
