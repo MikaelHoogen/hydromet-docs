@@ -84,6 +84,7 @@ nav:
   - Moduler:
       - Regnobservatorium: modules/rain-observatory.md
       - Regnanalysmoduler, detaljer: modules/rain-analysis-modules.md
+      - Fördjupade observatoriefunktioner: modules/rain-exploration-and-observatory-experience.md
       - Klimatprediktorbaserad IDF: modules/climate-predictor-idf.md
       - Koppling till skyfallskartering: modules/skyfall-mapping-context.md
   - Vision:
