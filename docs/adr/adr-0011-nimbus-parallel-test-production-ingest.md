@@ -1,8 +1,8 @@
-# ADR-0011: Nimbus har permanent parallell test- och produktionsingest
+# ADR-0011: Nimbus har gemensam test- och produktionsingest
 
-Status: Antagen
-
-Datum: 2026-07-17
+Status: Antagen, växlingssemantiken ersatt av [ADR-0012](adr-0012-one-way-nimbus-cutover-and-reproducible-analysis-tests.md)  
+Datum: 2026-07-17  
+Korrigerat: 2026-07-19
 
 ## Kontext
 
@@ -16,7 +16,7 @@ KISTERS TB4
 → Hydromet-databas
 ```
 
-Loggerkedjan behöver kunna verifieras återkommande utan att tekniska tester blandas in i produktionsobservationer.
+Loggerkedjan behöver kunna verifieras före produktionssättning utan att tekniska tester blandas in i produktionsobservationer.
 
 Detta beslut gäller inte den äldre syntetiska `logger_test`-kedjan eller historiska tabeller under `public.*`. Den äldre kedjan får fortsätta leva separat.
 
@@ -29,7 +29,7 @@ Dessutom identifierades två tekniska problem i den påbörjade produktionsmodel
 
 ## Beslut
 
-Nimbus ska ha två permanenta ingestmål:
+Nimbus ska ha två tillgängliga ingestmål under acceptans och produktionssättning:
 
 ```text
 Test:
@@ -43,9 +43,11 @@ verklig Nimbus MQTT
 → hydromet.event_observations
 ```
 
+Testmålet används för initial teknisk acceptans. När produktionsmålets första baseline har satts ska den verkliga Nimbus-kanalen stanna i produktion enligt ADR-0012.
+
 ### En gemensam implementation
 
-Det ska finnas en gemensam AppDaemon-klass som kan instansieras två gånger.
+Det ska finnas en gemensam AppDaemon-klass som kan instansieras för test eller produktion.
 
 De två instanserna ska använda samma:
 
@@ -165,25 +167,34 @@ quality_flag = time_distribution_uncertain
 
 Återhämtning får inte omvandlas till påhittade individuella tip-tider.
 
-### Växling
+### Första produktionssättning
 
-Båda AppDaemon-definitionerna får ligga installerade permanent.
-
-Vid tekniskt test:
+Under initial teknisk acceptans gäller:
 
 ```text
-testinstans aktiverad
-produktionsinstans avaktiverad
+testinstans aktiv
+produktionsinstans inte aktiv
 ```
 
-Vid produktion:
+Vid produktionssättning gäller:
 
 ```text
-testinstans avaktiverad
-produktionsinstans aktiverad
+1. stoppa testinstansen
+2. bekräfta att den har stannat
+3. starta produktionsinstansen
+4. vänta på första retained baseline
+5. verifiera en produktionsvippning
 ```
 
-När ett mål aktiveras första gången används dess retained `pulse_total` som målets databaslagrade baseline. Testperiodens tidigare pulser ska därför inte automatiskt backfyllas till produktion.
+När produktionsmålet aktiveras första gången används dess retained `pulse_total` som målets databaslagrade baseline. Testperiodens tidigare pulser backfylls därför inte till produktion.
+
+### Ingen återkommande växling
+
+Test och produktion har separata checkpoints men följer samma globala `pulse_total`. Måltabellen isolerar därför inte mätströmmen.
+
+Efter att produktionsmålets första baseline har satts får den verkliga `rain_1`-kanalen inte växlas tillbaka till testinstansen i normal drift. En senare återstart av en gammal checkpoint skulle tolka räknarökningen som missad nederbörd och kunna skapa felaktig recovery.
+
+Återkommande fysisk testning kräver en separat kanal och separat räknare enligt ADR-0012.
 
 ## Repoavgränsning
 
@@ -209,13 +220,15 @@ AppDaemon- och HA-filer skrivs inte automatiskt från detta arbete till Home Ass
 - dubbletter kan stoppas transaktionellt,
 - mottagartillstånd och observationscommit kan inte glida isär på grund av en separat filcheckpoint,
 - återhämtad mängd kan lagras utan falsk tidsprecision,
+- första produktionssättningen kan göras utan att tidigare testvippningar backfylls,
 - den äldre syntetiska testkedjan påverkas inte.
 
 ### Begränsningar
 
 - Nivå 1 har fortfarande ingen lokal eventjournal och inget backend-ack/replay,
 - exakt tidsfördelning kan gå förlorad under avbrott,
-- växling mellan test och produktion kräver att endast avsett mål är aktivt,
+- endast avsett mål får vara aktivt,
+- testmålet är ett acceptansmål och inte ett permanent A/B-reglage efter produktionssättning,
 - SQL-migrationerna måste verifieras mot den faktiska databasen före AppDaemon-start.
 
 ## Berörda migrationsfiler
