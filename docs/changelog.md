@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.7 — 2026-07-19
+
+Korrigerat teststrategin för den verkliga Nimbus-kanalen och dokumenterat reproducerbara analystest.
+
+Tillagt:
+
+```text
+docs/adr/adr-0012-one-way-nimbus-cutover-and-reproducible-analysis-tests.md
+docs/testing/rain-analysis-test-strategy.md
+```
+
+Uppdaterat:
+
+```text
+docs/adr/adr-0009-separate-logger-test-from-analysis-test.md
+docs/adr/adr-0011-nimbus-parallel-test-production-ingest.md
+docs/architecture/nimbus-parallel-ingest.md
+docs/runbooks/nimbus-parallel-ingest.md
+docs/decisions.md
+mkdocs.yml
+```
+
+Huvudkorrigeringar och beslut:
+
+- test och produktion har separata checkpoints men delar samma verkliga Nimbus-kanal och samma loggerägda `pulse_total`,
+- måltabellen isolerar därför lagring och idempotens men inte själva mätströmmen,
+- första växlingen från test till produktion är säker eftersom produktionen då sätter en ny baseline från retained state,
+- efter produktionsmålets första baseline ska den verkliga `rain_1`-kanalen stanna i produktion,
+- återkommande växling tillbaka till test stöds inte eftersom en gammal checkpoint kan skapa felaktig recovery,
+- `hydromet.rain_logger_test_events` är en teknisk ingest-testtabell och inte en generell analysmiljö,
+- intensitetsberäkningar, fasta fönster, regnhändelser, IDF och kvalitetslogik ska testas med deterministiska testserier och kända förväntade resultat,
+- nya analysversioner får skuggköras read-only mot produktionsobservationer med versionerade eller isolerade resultat,
+- en framtida permanent fysisk testväg måste ha separat kanal, separat räknare, separat topic och separat serie.
+
 ## 0.6 — 2026-07-17
 
 Dokumenterat och korrigerat den permanenta parallella test- och produktionsingesten för verkliga Nimbus.
