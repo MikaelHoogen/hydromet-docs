@@ -1,4 +1,4 @@
-# Nimbus parallell ingest: installation och verifiering
+# Nimbus test- och produktionsingest: installation och verifiering
 
 Status: Operativ runbook
 
@@ -16,6 +16,8 @@ KISTERS TB4
 
 Den äldre syntetiska `logger_test`-kedjan och `public.*` ligger utanför detta arbete.
 
+Den fysiska testvägen används för ett avgränsat acceptanstest före första produktionssättningen. Efter att produktionsmålets första baseline har satts ska den verkliga `rain_1`-kanalen stanna i produktion enligt [ADR-0012](../adr/adr-0012-one-way-nimbus-cutover-and-reproducible-analysis-tests.md).
+
 ## 2. Förutsättningar
 
 Databasläget inventerades 2026-07-17:
@@ -30,13 +32,13 @@ hydromet.event_observations
 - två gamla proof-of-concept-rader
 
 hydromet.rain_logger_test_events
-- finns inte
+- fanns inte före migration
 
 hydromet.observation_series
-- innehåller en gammal testserie rain.test.tb4_test
+- innehöll en gammal testserie rain.test.tb4_test
 
 hydromet.measurement_setups
-- innehåller en gammal testlogger-setup
+- innehöll en gammal testlogger-setup
 ```
 
 De två gamla Hydromet-raderna bevaras. Inga `public.*`-tabeller berörs.
@@ -125,23 +127,27 @@ MikaelHoogen/home-assistant
 
 och läggs in manuellt av användaren.
 
-Följande installationsfiler har tagits fram separat från detta repo:
+Den gemensamma Python-klassen ska installeras som:
 
 ```text
-appdaemon/nimbus_rain_ingest.py
-config/nimbus_ingest_apps.yaml
-config/appdaemon_mqtt.yaml.snippet
+appdaemon/apps/hydromet/rain_logger_level1_ingest.py
 ```
 
-Den gemensamma Python-klassen ska installeras i AppDaemons Hydromet-appkatalog.
+Klass:
 
-De två AppDaemon-blocken ska vara identiska förutom:
+```text
+RainLoggerLevel1Ingest
+```
+
+Test- och produktionsblocken ska vara identiska förutom:
 
 ```text
 target_table
 ```
 
 Appen ska läsa och uppdatera `hydromet.event_ingest_state`; en separat lokal checkpointfil ska inte vara primär sanning.
+
+Endast ett av blocken får vara aktivt åt gången.
 
 ## 6. MQTT-plugin
 
@@ -160,18 +166,35 @@ event_name = MQTT_MESSAGE
 
 Skapa inte ett andra MQTT-plugin om motsvarande plugin redan finns.
 
-## 7. Initialt testläge
-
-Installera båda AppDaemon-definitionerna, men börja med:
+Verifierad startlogg för version 0.3.0 ska visa bland annat:
 
 ```text
-nimbus_ingest_test        aktiverad
-nimbus_ingest_production  avaktiverad
+version=rain-logger-level1-ingest-0.3.0
+subscription=regnlogger/sannesholma/nimbus/rain_1/#
+mqtt_connected=True
+```
+
+## 7. Initialt testläge
+
+Börja med endast testinstansen aktiv:
+
+```text
+nimbus_ingest_test        aktiv
+nimbus_ingest_production  inte aktiv
 ```
 
 Den tidigare direkta Nimbus-instansen av `RainTipIngestHydromet` får inte köras samtidigt.
 
 Vänta tills retained state har behandlats och testmålets databaslagrade baseline har satts.
+
+Förväntad logg:
+
+```text
+Retained baseline satt:
+target=hydromet.rain_logger_test_events
+pulse_total=<aktuellt värde>
+boot_count=<aktuellt värde>
+```
 
 Verifiera baseline:
 
@@ -185,6 +208,8 @@ SELECT
 FROM hydromet.event_ingest_state
 WHERE target_table = 'hydromet.rain_logger_test_events';
 ```
+
+Baseline får inte skapa en falsk `rain_tip` eller `rain_recovery`.
 
 ## 8. Grundtest med verklig TB4
 
@@ -227,17 +252,18 @@ Förväntat:
 gamla counters skrivs inte om
 databasens mottagartillstånd återläses
 exakt en ny rain_tip-rad skapas
+ingen rain_recovery skapas av omstarten
 ```
 
 För ett hårdare kraschtest ska testet även omfatta omstart direkt efter en lyckad databasinsert. Eftersom observation, idempotensnyckel och mottagartillstånd bekräftas i samma transaktion ska ingen dubbel recovery skapas.
 
-## 10. Recovery-test
+## 10. Recovery-test före produktionssättning
 
 Recovery-testet verifierar mängdåterhämtning när live-events missas.
 
-1. Stoppa eller avaktivera testinstansen, men låt Nimbus fortsätta vara online.
+1. Stoppa eller ta bort testinstansen ur aktiv appkonfiguration, men låt Nimbus fortsätta vara online.
 2. Gör ett känt antal vippningar.
-3. Starta eller aktivera testinstansen igen.
+3. Starta testinstansen igen.
 4. Låt retained state behandlas.
 
 Förväntat:
@@ -253,20 +279,48 @@ event_ingest_state uppdateras till retained pulse_total
 
 Ändra eller radera inte testmålets rad i `hydromet.event_ingest_state` före detta test.
 
-## 11. Växling till produktion
+Recovery-testet ska vara avslutat och verifierat innan produktionsmålets första baseline sätts.
+
+## 11. Engångsväxling till produktion
 
 Växla i denna ordning:
 
 ```text
-1. avaktivera nimbus_ingest_test
-2. bekräfta att testinstansen har stannat
-3. aktivera nimbus_ingest_production
-4. vänta tills produktionsmålets retained baseline har satts
+1. stoppa eller ta bort nimbus_ingest_test ur aktiv appkonfiguration
+2. bekräfta i loggen att testinstansen har stannat
+3. lägg till eller aktivera nimbus_ingest_production
+4. kontrollera att target=hydromet.event_observations
+5. vänta tills produktionsmålets retained baseline har satts
 ```
 
-Tidigare testperiod backfylls inte till produktion.
+Första produktionsstarten ska visa:
 
-Kontrollera att en separat produktionsrad har skapats i `hydromet.event_ingest_state` med `target_table = 'hydromet.event_observations'`.
+```text
+last_seen=None
+```
+
+följt av en separat baseline för:
+
+```text
+target=hydromet.event_observations
+```
+
+Tidigare testperiod backfylls inte till produktion eftersom produktionsmålet ännu inte hade någon checkpoint.
+
+Kontrollera att en separat produktionsrad har skapats i `hydromet.event_ingest_state`:
+
+```sql
+SELECT
+    target_table,
+    series_id,
+    last_seen_pulse_total,
+    last_boot_count,
+    updated_at,
+    metadata
+FROM hydromet.event_ingest_state
+WHERE target_table = 'hydromet.event_observations'
+  AND series_id = '<Nimbus series_id>'::uuid;
+```
 
 Gör därefter en kontrollerad fysisk vippning.
 
@@ -277,19 +331,48 @@ hydromet.event_observations                exakt en ny rain_tip-rad
 hydromet.rain_logger_test_events           ingen ny rad
 counter                                    Nimbus aktuella pulse_total
 value                                      0.2 mm
+ingen rain_recovery                        för den normala vippningen
 ```
 
-## 12. Växling tillbaka till test
+## 12. Efter produktionsbaseline
+
+När produktionsmålets första baseline har satts gäller:
 
 ```text
-1. avaktivera nimbus_ingest_production
-2. bekräfta att produktionsinstansen har stannat
-3. aktivera nimbus_ingest_test
+Nimbus rain_1 stannar i produktion.
 ```
 
-Testmålets egen rad i `hydromet.event_ingest_state` används. Produktionstabellen ska inte påverkas.
+Återaktivera inte testinstansen mot samma kanal och samma `pulse_total` som ett normalt testförfarande.
 
-## 13. Felsökning
+Orsak:
+
+```text
+test och produktion har separata checkpoints
+men delar samma loggerägda pulse_total
+```
+
+En senare återstart av en gammal checkpoint kan därför tolka testvippningar eller produktionsregn som missade pulser och skapa felaktig recovery.
+
+Det finns ingen säker generell "växla tillbaka till test"-procedur för den befintliga fysiska kanalen.
+
+## 13. Test av intensitets- och analysberäkningar
+
+Använd inte `hydromet.rain_logger_test_events` eller manuella Nimbus-vippningar som generell testmiljö för TimescaleDB-analyser.
+
+Utveckling av rullande intensiteter, fasta fönster, händelser, IDF och kvalitetslogik ska använda:
+
+```text
+separata testserier
+egna series_id
+kontrollerade tidsstämplar
+kontrollerade counters
+kända luckor och recoveries
+förväntade resultat
+```
+
+Nya beräkningsversioner får skuggköras read-only mot verkliga produktionsobservationer, med versionerade eller isolerade resultat.
+
+## 14. Felsökning
 
 ### Måltabellen saknas
 
@@ -304,7 +387,7 @@ Kör `004_seed_nimbus_series.sql` och verifiera att exakt en aktiv setup finns.
 Kontrollera:
 
 ```text
-rätt AppDaemon-instans är aktiverad
+rätt AppDaemon-instans är aktiv
 MQTT namespace och event_name stämmer
 Nimbus-identiteterna i payload stämmer
 DB-användaren har INSERT-rättighet
@@ -315,7 +398,21 @@ måltabellen kan skrivas
 
 ### Båda tabellerna får data
 
-Båda AppDaemon-instansierna är aktiverade. Avaktivera omedelbart det oönskade målet och dokumentera tidsintervallet.
+Båda AppDaemon-instansierna är aktiva. Stoppa omedelbart det oönskade målet och dokumentera tidsintervallet.
+
+### Produktion skapar recovery efter testväxling
+
+Stoppa vidare växling. Jämför:
+
+```text
+produktionens checkpoint
+testets checkpoint
+loggerns aktuella pulse_total
+tidsintervallet då respektive instans var aktiv
+verkligt regn kontra manuella testvippningar
+```
+
+Radera eller flytta inte checkpointen utan separat analys. En manuell baselineflytt kan samtidigt kasta bort verkligt regn.
 
 ### Counter regression
 
@@ -331,16 +428,17 @@ senaste databasrader
 
 Regression får inte döljas eller normaliseras bort.
 
-## 14. Godkännandekriterier
+## 15. Godkännandekriterier
 
-Nimbus parallella ingest är godkänd när:
+Nimbus-ingesten är godkänd för produktion när:
 
 - tabellpariteten är verifierad,
 - `event_ingest_keys` och `event_ingest_state` är verifierade,
 - tio verkliga tips ger exakt tio rader i testmålet,
-- omstart inte skapar dubbletter,
+- omstart inte skapar dubbletter eller falsk recovery,
 - recovery ger rätt mängd och tidsosäker flagga,
 - databasens mottagartillstånd följer sista bekräftade counter,
-- växling till produktion bara skriver till produktionstabellen,
-- växling tillbaka bara skriver till testtabellen,
+- första växlingen till produktion sätter en ny baseline utan att backfylla testperioden,
+- en kontrollerad produktionsvippning bara skrivs till produktionstabellen,
+- testinstansen därefter inte används som återkommande A/B-läge,
 - den äldre syntetiska testkedjan och `public.*` är opåverkade.
