@@ -16,7 +16,8 @@ Detta dokument sammanfattar viktiga arkitekturbeslut. Detaljerade beslut dokumen
 | ADR-0008 | Hydromet core byggs före regnmodul | Accepted |
 | ADR-0009 | Loggertest separeras från analys- och beräkningstest | Accepted |
 | ADR-0010 | Regnloggernivåer och mätintegritet | Accepted |
-| ADR-0011 | Nimbus har permanent parallell test- och produktionsingest | Accepted |
+| ADR-0011 | Nimbus har gemensam test- och produktionsingest | Accepted, switching amended by ADR-0012 |
+| ADR-0012 | Nimbus går envägs till produktion och analys testas reproducerbart | Accepted |
 
 ## Övriga inriktningsbeslut
 
@@ -109,18 +110,34 @@ Analys- och beräkningstest ska däremot gå genom samma observationsmodell som 
 
 Syftet är att kunna testa ESP, MQTT, pulsnummer och databasskrivning utan risk för produktionsberäkningar, men samtidigt kunna testa beräkningskedjan realistiskt när den delen ska verifieras.
 
-### Nimbus har permanent parallell ingest
+### Nimbus har gemensam ingest för acceptans och produktion
 
-Den verkliga Nimbus-kedjan ska kunna växla mellan:
+Den verkliga Nimbus-kedjan använder samma AppDaemon-implementation för:
 
 ```text
-hydromet.rain_logger_test_events
-hydromet.event_observations
+initialt acceptanstest → hydromet.rain_logger_test_events
+produktion             → hydromet.event_observations
 ```
 
-Samma AppDaemon-implementation ska användas för båda målen. Utöver instansnamnet ska endast `target_table` skilja konfigurationerna.
+Utöver instansnamnet ska endast `target_table` skilja konfigurationerna.
 
 Testtabellen ska vara en strukturell spegel av produktionstabellen. Båda använder samma verkliga Nimbus-serie och aktiva mätuppställning. Den äldre syntetiska `logger_test`-kedjan och `public.*` är separata och påverkas inte.
+
+### Nimbus går envägs till produktion
+
+Första växlingen från test till produktion är säker eftersom produktionsmålet ännu saknar checkpoint och sätter aktuell retained `pulse_total` som baseline.
+
+Efter att produktionsmålets första baseline har satts ska den verkliga `rain_1`-kanalen stanna i produktion.
+
+Återkommande växling fram och tillbaka stöds inte, eftersom test och produktion har separata checkpoints men delar samma loggerägda monotona `pulse_total`. En gammal checkpoint kan annars tolka testvippningar eller verkligt regn som missade pulser och skapa felaktig recovery.
+
+### Analys testas med reproducerbara serier och skuggkörning
+
+Intensitetsberäkningar, fasta fönster, händelser, IDF och kvalitetslogik ska testas med separata deterministiska testserier med egna identiteter, kontrollerade tider, counters, luckor och förväntade resultat.
+
+Nya analysversioner får skuggköras read-only mot verkliga produktionsobservationer. Resultaten ska vara versionerade eller isolerade tills kandidaten är verifierad.
+
+`hydromet.rain_logger_test_events` är en teknisk ingest-testtabell och inte Hydromets generella utvecklingsdatabas för analys.
 
 ### Repoavgränsning för intern observatoriedrift
 

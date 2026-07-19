@@ -1,4 +1,4 @@
-# Nimbus parallella test- och produktionsingest
+# Nimbus test- och produktionsingest
 
 Status: Kanonisk arkitektur för intern Nimbus-ingest
 
@@ -16,12 +16,15 @@ KISTERS TB4
 
 Det gäller inte den äldre syntetiska `logger_test`-kedjan eller dess historiska data under `public.*`.
 
-Det styrande beslutet finns i [ADR-0011](../adr/adr-0011-nimbus-parallel-test-production-ingest.md).
+Styrande beslut finns i:
 
-## 2. Två permanenta mål
+- [ADR-0011](../adr/adr-0011-nimbus-parallel-test-production-ingest.md) för gemensam ingestkod, tabellparitet, idempotens och checkpoint,
+- [ADR-0012](../adr/adr-0012-one-way-nimbus-cutover-and-reproducible-analysis-tests.md) för envägsväxling och teststrategi efter produktionssättning.
+
+## 2. Två ingestmål under acceptans och produktionssättning
 
 ```text
-Tekniskt test:
+Tekniskt acceptanstest:
 regnlogger/sannesholma/nimbus/rain_1/tip + state
 → Nimbus-ingest
 → hydromet.rain_logger_test_events
@@ -34,9 +37,11 @@ regnlogger/sannesholma/nimbus/rain_1/tip + state
 
 Testet använder verklig mätare, verklig loggeridentitet, verkliga MQTT-topics och samma databaslogik som produktion.
 
+Testmålet är dock ett avgränsat steg före första produktionssättningen. Det är inte ett permanent A/B-reglage för den fysiska `rain_1`-kanalen.
+
 ## 3. En kodväg
 
-AppDaemon-implementationen ska bestå av en gemensam klass och två instanser.
+AppDaemon-implementationen ska bestå av en gemensam klass och två möjliga instanser.
 
 De två konfigurationsblocken ska vara identiska förutom:
 
@@ -51,6 +56,8 @@ target_table: hydromet.event_observations
 ```
 
 Idempotens och mottagartillstånd separeras internt genom `target_table`. Inga separata filvägar eller andra beteendeskillnader ska behöva konfigureras.
+
+Endast ett mål får vara aktivt åt gången.
 
 ## 4. Gemensam serie och mätuppställning
 
@@ -202,7 +209,7 @@ quality_flag = time_distribution_uncertain
 
 Recovery-tiden är mottagartid. Individuella tip-tider konstrueras inte.
 
-## 10. Baseline vid växling
+## 10. Första baseline och envägsväxling
 
 Test och produktion har var sitt databaslagrat mottagartillstånd.
 
@@ -213,9 +220,90 @@ retained state pulse_total
 → baseline för just (target_table, series_id)
 ```
 
-Därmed kopieras inte tidigare testperiod automatiskt in i produktion när produktionsinstansen aktiveras.
+Därmed kopieras inte tidigare testperiod automatiskt in i produktion när produktionsinstansen aktiveras första gången.
 
-## 11. Repo- och driftgräns
+Den första växlingen är därför säker:
+
+```text
+tekniskt acceptanstest
+→ stoppa testinstansen
+→ starta produktionsinstansen
+→ sätt första produktionsbaseline
+→ verifiera produktionsvippning
+```
+
+Efter detta ska den verkliga Nimbus-kanalen stanna i produktion.
+
+## 11. Varför återkommande växling inte är säker
+
+Test och produktion har separata checkpoints men följer samma globala monotona `pulse_total`.
+
+Det som är isolerat är:
+
+```text
+eventtabell
+idempotensnycklar
+mottagarcheckpoint
+```
+
+Det som inte är isolerat är:
+
+```text
+MQTT-strömmen
+kanalen
+loggerns pulse_total
+```
+
+Exempel:
+
+```text
+produktionens checkpoint = 120
+produktionen stoppas
+fem manuella testvippningar höjer pulse_total till 125
+produktionen startas igen
+```
+
+Produktionens gamla checkpoint kan då inte veta att pulserna var test och skulle kunna skapa en `rain_recovery` på 1,0 mm.
+
+Samma problem finns åt andra hållet med verkligt produktionsregn som inträffar medan testinstansen är avstängd.
+
+Därför gäller:
+
+```text
+ingen återkommande växling tillbaka till test efter första produktionsbaseline
+```
+
+## 12. Test av intensitets- och analysberäkningar
+
+`hydromet.rain_logger_test_events` är en teknisk ingest-testtabell. Den ska inte användas som generell utvecklingsdatabas för:
+
+```text
+rullande intensiteter
+fasta fönster
+regnhändelser
+IDF
+återkomsttid
+kvalitetsalgoritmer
+```
+
+Sådana tester ska använda reproducerbara testserier med egna identiteter, kontrollerade tidsstämplar, counters, luckor och förväntade resultat.
+
+Nya analysversioner får skuggköras read-only mot produktionsobservationer, men resultatet ska vara versionerat eller isolerat från aktiv produktion.
+
+## 13. Krav för framtida fysisk testkanal
+
+En permanent fysisk end-to-end-testväg efter produktionssättning måste minst ha:
+
+```text
+separat channel_id
+separat räknare
+separat MQTT-topic
+separat series_key
+```
+
+En separat topic utan separat räknare är inte tillräcklig.
+
+## 14. Repo- och driftgräns
 
 ```text
 hydromet-docs
@@ -229,7 +317,7 @@ Filer som hör till Home Assistant tas fram som installationsunderlag och läggs
 
 `hydromet-core` är inte del av denna implementation.
 
-## 12. Migrationsordning
+## 15. Migrationsordning
 
 ```text
 001_core_observations.sql              redan körd
@@ -239,4 +327,4 @@ Filer som hör till Home Assistant tas fram som installationsunderlag och läggs
 verify_nimbus_parallel_storage.sql     kontrollerar paritet, ledger, state och register
 ```
 
-Körordning och acceptanstest finns i [Nimbus parallell ingest](../runbooks/nimbus-parallel-ingest.md).
+Körordning och acceptanstest finns i [Nimbus test- och produktionsingest](../runbooks/nimbus-parallel-ingest.md).
